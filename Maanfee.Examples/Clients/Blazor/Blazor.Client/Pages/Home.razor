@@ -1,0 +1,71 @@
+﻿@page "/"
+@using Maanfee.WebSocket
+@implements IDisposable
+
+<PageTitle>Home</PageTitle>
+
+<h3>Simple WebSocket Demo</h3>
+
+<button class="btn btn-primary" @onclick="SendTestMessage">Send Test Message</button>
+
+<div>
+    @foreach (var msg in messages)
+    {
+        <p>@msg</p>
+    }
+</div>
+
+@code {
+    private WebSocketClient client;
+    private List<string> messages = new List<string>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        client = new WebSocketClient("127.0.0.1", 5000);
+
+        client.MessageReceived += (sender, message) =>
+        {
+            InvokeAsync(() =>
+            {
+                messages.Add($"Received: {message}");
+                StateHasChanged();
+            });
+        };
+
+        client.Connected += (sender, e) =>
+        {
+            InvokeAsync(() =>
+            {
+                messages.Add("Connected to server!");
+                StateHasChanged();
+            });
+        };
+
+        try
+        {
+            await client.ConnectAsync();
+        }
+        catch (Exception ex)
+        {
+            messages.Add($"Connection error: {ex.Message}");
+        }
+    }
+
+    private async Task SendTestMessage()
+    {
+        try
+        {
+            await client.SendMessageAsync($"Hello from Blazor at {DateTime.Now:T}");
+        }
+        catch (Exception ex)
+        {
+            messages.Add($"Send error: {ex.Message}");
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        client?.Dispose();
+    }
+}

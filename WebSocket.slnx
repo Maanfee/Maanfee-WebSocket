@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/Maanfee.Examples/" />
+  <Folder Name="/Maanfee.Examples/Clients/">
+    <Project Path="Maanfee.Examples/Clients/Blazor/Blazor.Client/Blazor.Client.csproj" />
+    <Project Path="Maanfee.Examples/Clients/Blazor/Blazor/Blazor.csproj" />
+    <Project Path="Maanfee.Examples/Clients/ConsoleClient/ConsoleClient.csproj" />
+    <Project Path="Maanfee.Examples/Clients/WebAPIClient/WebAPIClient.csproj" />
+  </Folder>
+  <Folder Name="/Maanfee.Examples/Servers/">
+    <Project Path="Maanfee.Examples/Servers/ConsoleServer/ConsoleServer.csproj" />
+    <Project Path="Maanfee.Examples/Servers/WebAPIServer/WebAPIServer.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="Maanfee.WebSocket/Maanfee.WebSocket.csproj" />
+</Solution>

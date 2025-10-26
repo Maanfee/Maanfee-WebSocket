@@ -1,0 +1,6 @@
+@WebAPIClient_HostAddress = http://localhost:5001
+
+GET {{WebAPIClient_HostAddress}}/WebSocket/
+Accept: application/json
+
+###
