@@ -19,7 +19,7 @@ namespace WebAPIServer.Controllers
         {
             return Ok(new
             {
-                connectedClients = _webSocketServer.GetConnectedClientsCount(),
+                connectedClients = _webSocketServer.GetConnectedUsersCount(),
                 isRunning = true // می‌توانید این property را به سرور اضافه کنید
             });
         }

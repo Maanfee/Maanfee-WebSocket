@@ -21,12 +21,12 @@ namespace WebAPIClient.Services
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            _logger.LogInformation("WebSocket Client Service starting...");
+            _logger.LogInformation("WebAPI Client Service starting...");
 
             try
             {
                 await _webSocketClient.ConnectAsync();
-                _logger.LogInformation("WebSocket Client connected to server");
+                _logger.LogInformation("WebAPI Client connected to server");
             }
             catch (Exception ex)
             {
@@ -39,13 +39,13 @@ namespace WebAPIClient.Services
                 await Task.Delay(1000, stoppingToken);
             }
 
-            _logger.LogInformation("WebSocket Client Service stopping...");
+            _logger.LogInformation("WebAPI Client Service stopping...");
             await _webSocketClient.DisconnectAsync();
         }
 
         private void OnMessageReceived(object sender, string message)
         {
-            _logger.LogInformation("Received message from server: {Message}", message);
+            _logger.LogInformation("WebAPI Received message from server: {Message}", message);
 
             // در اینجا می‌توانید پیام را پردازش کنید
             // مثلاً ذخیره در دیتابیس، ارسال به سرویس دیگر و غیره
@@ -54,17 +54,17 @@ namespace WebAPIClient.Services
 
         private void OnConnected(object sender, EventArgs e)
         {
-            _logger.LogInformation("WebSocket connection established");
+            _logger.LogInformation("WebAPI connection established");
         }
 
         private void OnConnectionClosed(object sender, string reason)
         {
-            _logger.LogWarning("WebSocket connection closed: {Reason}", reason);
+            _logger.LogWarning("WebAPI connection closed: {Reason}", reason);
         }
 
         private void OnErrorOccurred(object sender, Exception exception)
         {
-            _logger.LogError(exception, "WebSocket error occurred");
+            _logger.LogError(exception, "WebAPI error occurred");
         }
 
         private void ProcessReceivedMessage(string message)

@@ -21,11 +21,18 @@ Example implementations demonstrating usage in different application types.
 |--------|-------------|
 | `Start()` | Start the server |
 | `StopAsync()` | Stop the server gracefully |
-| `HandleWebSocketConnection(WebSocket)` | Handle new WebSocket connections |
-| `BroadcastMessage(string)` | Send message to all connected clients |
+| `HandleWebSocketConnectionAsync(WebSocket)` | Handle new WebSocket connections |
+| `SendToAllAsync(string)` | Send message to all connected clients |
 | `SendToClientAsync(string clientId, string message)` | Send message to specific client |
 | `GetConnectedClientsCount()` | Get number of connected clients |
 | `Dispose()` | Clean up resources |
+
+| Events | Description |
+|--------|-------------|
+| `ClientConnected` | When client connected |
+| `ClientDisconnected` | When Connection disconnected |
+| `ServerStopped` |  When server stopped |
+| `Connected` | When message received |
 
 ## WebSocketClient Methods
 
@@ -36,13 +43,20 @@ Example implementations demonstrating usage in different application types.
 | `DisconnectAsync()` | Disconnect from server |
 | `Dispose()` | Clean up resources |
 
+| Events | Description |
+|--------|-------------|
+| `MessageReceived` | Received messages |
+| `ConnectionClosed` | Connection closed |
+| `ErrorOccurred` | Error occurred |
+| `Connected` | Connect to the server |
+
 # 🚀 Quick Start
 # Solution Configuration Guide
 
 ## Steps to Configure Multiple Startup Projects
 
 1. **Open the Solution**
-   - Right-click on the solution name in Solution Explorer
+   - Right-click on the solution name in the Solution Explorer
 
 2. **Access Solution Properties**
    - Go to `Properties`

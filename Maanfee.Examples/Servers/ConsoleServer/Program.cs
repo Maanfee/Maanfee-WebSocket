@@ -1,23 +1,23 @@
 ﻿using Maanfee.WebSocket;
 using System.Net;
 
-var server = new WebSocketServer();
+IWebSocketServer server = new WebSocketServer();
 server.Start();
 
 // ثبت event handlers برای سرور
 server.ClientConnected += (sender, e) =>
 {
-    Console.WriteLine($"[SERVER] ✅ Client connected: {e.ClientId} at {e.ConnectedTime:T}");
+    Console.WriteLine($"[SERVER] ✅ Client connected: {e.User.Id} at {e.User.ConnectedTime:T}");
 };
 
 server.ClientDisconnected += (sender, e) =>
 {
-    Console.WriteLine($"[SERVER] ❌ Client disconnected: {e.ClientId} at {e.DisconnectedTime:T}");
+    Console.WriteLine($"[SERVER] ❌ Client disconnected: {e.User.Id} at {e.User.DisconnectedTime:T}");
 };
 
 server.MessageReceived += (sender, e) =>
 {
-    Console.WriteLine($"[SERVER] 📩 Received from {e.ClientId}: {e.Message}");
+    Console.WriteLine($"[SERVER] 📩 Received from {e.User.Id}: {e.Message}");
 };
 
 server.ServerStopped += (sender, e) =>
@@ -50,7 +50,7 @@ _ = Task.Run(async () =>
                 // هر اتصال جدید در یک Task جداگانه اجرا شود
                 _ = Task.Run(async () =>
                 {
-                    await server.HandleWebSocketConnection(webSocketContext.WebSocket);
+                    await server.HandleWebSocketConnectionAsync(webSocketContext.WebSocket);
                 });
             }
             else

@@ -4,9 +4,16 @@ using WS = System.Net.WebSockets.WebSocket;
 
 namespace Maanfee.WebSocket
 {
-    public class WebSocketServer : IDisposable
+    public partial class WebSocketServer : IWebSocketServer, IDisposable
     {
-        private readonly List<WS> _connectedClients = new List<WS>();
+        public WebSocketServer(WebSocketOption options = null)
+        {
+            _options = options ?? new WebSocketOption();
+            _cancellationTokenSource = new CancellationTokenSource();
+            Console.WriteLine("WebSocket Server initialized");
+        }
+
+        private WebSocketOption _options;
         private readonly object _lock = new object();
         private bool _isRunning = false;
         private CancellationTokenSource _cancellationTokenSource;
@@ -17,63 +24,75 @@ namespace Maanfee.WebSocket
         public event EventHandler ServerStopped;
         public event EventHandler<MessageReceivedEventArgs> MessageReceived;
 
-        public WebSocketServer()
+        public async Task HandleWebSocketConnectionAsync(WS webSocket)
         {
-            _cancellationTokenSource = new CancellationTokenSource();
-            Console.WriteLine("WebSocket Server initialized");
-        }
+            var userId = Guid.NewGuid().ToString();
+            var user = new WebSocketUser(userId, webSocket);
 
-        public async Task HandleWebSocketConnection(WS webSocket)
-        {
-            var clientId = Guid.NewGuid().ToString();
+            // بررسی وضعیت WebSocket قبل از اضافه کردن
+            if (webSocket.State != WebSocketState.Open)
+            {
+                Console.WriteLine($"WebSocket is not open. State: {webSocket.State}");
+                return;
+            }
 
             lock (_lock)
             {
-                _connectedClients.Add(webSocket);
+                Users.Add(user);
             }
 
-            Console.WriteLine($"Client connected. Total clients: {_connectedClients.Count}");
+            Console.WriteLine($"User connected: {userId}. Total users: {Users.Count}");
 
             // Trigger ClientConnected event
             OnClientConnected(new WebSocketClientEventArgs
             {
-                ClientId = clientId,
                 WebSocket = webSocket,
-                ConnectedTime = DateTime.Now
+                User = user
             });
 
-            await HandleClientAsync(webSocket, clientId);
+            await HandleUserAsync(user);
         }
 
-        private async Task HandleClientAsync(WS webSocket, string clientId)
+        private async Task HandleUserAsync(WebSocketUser user)
         {
-            var buffer = new byte[4096];
+            var buffer = new byte[_options.BufferSize];
 
             try
             {
-                while (webSocket.State == WebSocketState.Open && !_cancellationTokenSource.Token.IsCancellationRequested)
+                while (user.IsConnected && !_cancellationTokenSource.Token.IsCancellationRequested)
                 {
-                    var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
+                    var result = await user.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
 
                     if (result.MessageType == WebSocketMessageType.Text)
                     {
                         var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Console.WriteLine($"Received from client {clientId}: {message}");
+                        Console.WriteLine($"Received from user {user.Id}: {message}");
 
                         // Trigger MessageReceived event
                         OnMessageReceived(new MessageReceivedEventArgs
                         {
-                            ClientId = clientId,
                             Message = message,
                             ReceivedTime = DateTime.Now,
-                            WebSocket = webSocket
+                            WebSocket = user.WebSocket,
+                            User = user
                         });
 
-                        // ارسال پیام به همه کلاینت‌ها
-                        await BroadcastMessage($"Broadcast: {message}");
+                        // ارسال پیام به همه کاربران با مدیریت خطا
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await BroadcastMessage($"Broadcast: {message}");
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Broadcast error: {ex.Message}");
+                            }
+                        });
                     }
                     else if (result.MessageType == WebSocketMessageType.Close)
                     {
+                        // فقط اتصال را قطع کنید بدون فراخوانی CloseAsync مجدد
                         break;
                     }
                 }
@@ -81,33 +100,80 @@ namespace Maanfee.WebSocket
             catch (OperationCanceledException)
             {
                 // Server is stopping - this is normal
+                Console.WriteLine($"Operation canceled for user {user.Id}");
+            }
+            catch (System.Net.WebSockets.WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
+            {
+                // User closed connection unexpectedly
+                Console.WriteLine($"User {user.Id} closed connection prematurely: {ex.Message}");
+            }
+            catch (WebSocketException ex)
+            {
+                Console.WriteLine($"WebSocket error for user {user.Id}: {ex.Message}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Client handling error: {ex.Message}");
+                Console.WriteLine($"Unexpected error for user {user.Id}: {ex.Message}");
             }
             finally
             {
+                await CleanupUser(user);
+            }
+        }
+
+        private async Task CleanupUser(WebSocketUser user)
+        {
+            try
+            {
+                user.MarkDisconnected();
+
                 lock (_lock)
                 {
-                    _connectedClients.Remove(webSocket);
+                    // ✅ بررسی وجود کاربر قبل از حذف
+                    if (Users.Contains(user))
+                    {
+                        Users.Remove(user);
+                    }
                 }
 
-                if (webSocket.State == WebSocketState.Open)
+                if (user.WebSocket.State == WebSocketState.Open || user.WebSocket.State == WebSocketState.CloseReceived || user.WebSocket.State == WebSocketState.CloseSent)
                 {
-                    await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Connection closed", CancellationToken.None);
+                    try
+                    {
+                        await user.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure,
+                            "Connection closed",
+                            CancellationToken.None);
+                    }
+                    catch (WebSocketException)
+                    {
+                        // Ignore close errors during cleanup
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // Socket already disposed
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error during user cleanup {user.Id}: {ex.Message}");
+            }
+            finally
+            {
+                try
+                {
+                    user.WebSocket.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error disposing websocket for {user.Id}: {ex.Message}");
                 }
 
-                webSocket.Dispose();
-
-                Console.WriteLine($"Client disconnected. Total clients: {_connectedClients.Count}");
-
-                // Trigger ClientDisconnected event
+                Console.WriteLine($"User disconnected: {user.Id}. Total users: {Users.Count}");
                 OnClientDisconnected(new WebSocketClientEventArgs
                 {
-                    ClientId = clientId,
-                    WebSocket = webSocket,
-                    DisconnectedTime = DateTime.Now
+                    WebSocket = user.WebSocket,
+                    User = user
                 });
             }
         }
@@ -119,9 +185,9 @@ namespace Maanfee.WebSocket
 
             lock (_lock)
             {
-                foreach (var client in _connectedClients.Where(c => c.State == WebSocketState.Open))
+                foreach (var user in Users.Where(u => u.IsConnected))
                 {
-                    tasks.Add(client.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None));
+                    tasks.Add(user.WebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None));
                 }
             }
 
@@ -130,11 +196,11 @@ namespace Maanfee.WebSocket
 
         public async Task SendToClientAsync(string clientId, string message)
         {
-            var client = GetClientById(clientId);
-            if (client != null && client.State == WebSocketState.Open)
+            var user = GetUserById(clientId);
+            if (user != null && user.IsConnected)
             {
                 var bytes = Encoding.UTF8.GetBytes(message);
-                await client.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
+                await user.WebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
             }
         }
 
@@ -155,13 +221,13 @@ namespace Maanfee.WebSocket
             _isRunning = false;
             _cancellationTokenSource.Cancel();
 
-            // Close all client connections
+            // Close all user connections
             var closeTasks = new List<Task>();
             lock (_lock)
             {
-                foreach (var client in _connectedClients.Where(c => c.State == WebSocketState.Open))
+                foreach (var user in Users.Where(u => u.IsConnected))
                 {
-                    closeTasks.Add(client.CloseAsync(WebSocketCloseStatus.NormalClosure, "Server stopping", CancellationToken.None));
+                    closeTasks.Add(user.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Server stopping", CancellationToken.None));
                 }
             }
 
@@ -172,38 +238,7 @@ namespace Maanfee.WebSocket
 
             Console.WriteLine("WebSocket Server stopped");
         }
-
-        public int GetConnectedClientsCount()
-        {
-            lock (_lock)
-            {
-                return _connectedClients.Count;
-            }
-        }
-
-        public List<string> GetConnectedClientIds()
-        {
-            // در این پیاده‌سازی ساده، clientIdها را ذخیره نکرده‌ایم
-            // در یک پیاده‌سازی واقعی، باید clientIdها را در یک dictionary نگهداری کنید
-            lock (_lock)
-            {
-                return Enumerable.Range(0, _connectedClients.Count)
-                    .Select(i => $"Client_{i}")
-                    .ToList();
-            }
-        }
-
-        private WS GetClientById(string clientId)
-        {
-            // در این پیاده‌سازی ساده، این متد کارایی محدودی دارد
-            // در پیاده‌سازی واقعی، باید mapping بین clientId و WebSocket را نگهداری کنید
-            lock (_lock)
-            {
-                // این فقط یک نمونه ساده است
-                return _connectedClients.FirstOrDefault();
-            }
-        }
-
+            
         // Event invokers
         protected virtual void OnClientConnected(WebSocketClientEventArgs e)
         {

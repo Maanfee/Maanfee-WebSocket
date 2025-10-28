@@ -1,0 +1,491 @@
+﻿@page "/"
+@using Maanfee.WebSocket
+@inject WebSocketServer WebSocketServer
+@* @implements IDisposable
+@implements IAsyncDisposable *@
+
+<PageTitle>WebSocket Server Manager</PageTitle>
+
+<style>
+
+	.console-log {
+		height: 300px;
+		overflow-y: auto;
+		background-color: #1e1e1e;
+		color: #d4d4d4;
+		padding: 10px;
+		font-family: 'Courier New', monospace;
+		font-size: 0.9rem;
+		line-height: 1.4;
+	}
+
+		.console-log div {
+			border-bottom: 1px solid #333;
+			padding: 2px 0;
+			word-break: break-all;
+		}
+
+			.console-log div:last-child {
+				border-bottom: none;
+			}
+
+		/* Custom scrollbar for console */
+		.console-log::-webkit-scrollbar {
+			width: 8px;
+		}
+
+		.console-log::-webkit-scrollbar-track {
+			background: #2d2d2d;
+		}
+
+		.console-log::-webkit-scrollbar-thumb {
+			background: #555;
+			border-radius: 4px;
+		}
+
+			.console-log::-webkit-scrollbar-thumb:hover {
+				background: #777;
+			}
+
+</style>
+
+<div class="container-fluid">
+	<div class="row">
+		<div class="col-12">
+			<h6>WebSocket Server Manager</h6>
+		</div>
+	</div>
+
+	<!-- Server Status -->
+	<div class="row mb-4">
+		<div class="col-md-6">
+			<div class="card">
+				<div class="card-header bg-primary text-white">
+					<h5 class="mb-0">Server Status</h5>
+				</div>
+				<div class="card-body">
+					<div class="row">
+						<div class="col-6">
+							<strong>Status:</strong>
+							<span class="badge @(isRunning ? "bg-success" : "bg-danger")">
+								@(isRunning ? "Running" : "Stopped")
+							</span>
+						</div>
+						<div class="col-6">
+							<strong>Connected Users:</strong>
+							<span class="badge bg-info">@ConnectedUsersCount</span>
+						</div>
+					</div>
+					<div class="row mt-3">
+						<div class="col-12">
+							@if (isRunning)
+							{
+								<button class="btn btn-danger" @onclick="StopServer" disabled="@isStopping">
+									<i class="fas fa-stop"></i>
+									@(isStopping ? "Stopping..." : "Stop Server")
+								</button>
+							}
+							else
+							{
+
+								<button class="btn btn-success" @onclick="StartServer">
+									<i class="fas fa-play"></i> Start Server
+								</button>
+							}
+							<button class="btn btn-warning" @onclick="RefreshStatus">
+								<i class="fas fa-sync-alt"></i> Refresh
+							</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Quick Actions -->
+		<div class="col-md-6">
+			<div class="card">
+				<div class="card-header bg-info text-white">
+					<h5 class="mb-0">Quick Actions</h5>
+				</div>
+				<div class="card-body">
+					<div class="row">
+						<div class="col-12 mb-2">
+							<button class="btn btn-outline-primary w-100" @onclick="BroadcastToAll"
+									disabled="@(!isRunning || ConnectedUsersCount == 0)">
+								<i class="fas fa-broadcast-tower"></i> Broadcast Test Message
+							</button>
+						</div>
+						<div class="col-12">
+							<div class="input-group">
+								<input @bind="broadcastMessage" @bind:event="oninput"
+									   class="form-control" placeholder="Enter message to broadcast" />
+								<button class="btn btn-primary" @onclick="SendCustomBroadcast"
+										disabled="@(!isRunning || string.IsNullOrWhiteSpace(broadcastMessage))">
+									<i class="fas fa-paper-plane"></i> Send
+								</button>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Connected Users -->
+	<div class="row">
+		<div class="col-12">
+			<div class="card">
+				<div class="card-header bg-success text-white">
+					<h5 class="mb-0">
+						Connected Users (@ConnectedUsersCount)
+						<button class="btn btn-sm btn-light float-end" @onclick="RefreshStatus">
+							<i class="fas fa-sync-alt"></i>
+						</button>
+					</h5>
+				</div>
+				<div class="card-body p-0">
+					@if (ConnectedUsers.Any())
+					{
+						<div class="table-responsive">
+							<table class="table table-striped table-hover mb-0">
+								<thead>
+									<tr>
+										<th>User ID</th>
+										<th>Connection Time</th>
+										<th>Duration</th>
+										<th>Status</th>
+										<th>Actions</th>
+									</tr>
+								</thead>
+								<tbody>
+									@foreach (var user in ConnectedUsers)
+									{
+										<tr>
+											<td title="@user.Id">@user.Id.Substring(0, 8)...</td>
+											<td>@user.ConnectedTime.ToString("HH:mm:ss")</td>
+											<td>@GetConnectionDuration(user.ConnectedTime)</td>
+											<td>
+												<span class="badge bg-success">Connected</span>
+											</td>
+											<td>
+												<button class="btn btn-sm btn-outline-primary"
+														@onclick="() => SendToUser(user.Id)"
+														title="Send test message">
+													<i class="fas fa-paper-plane"></i> Send
+												</button>
+												<button class="btn btn-sm btn-outline-info"
+														@onclick="() => ViewUserDetails(user.Id)"
+														title="View details">
+													<i class="fas fa-info-circle"></i> Details
+												</button>
+											</td>
+										</tr>
+									}
+								</tbody>
+							</table>
+						</div>
+					}
+					else
+					{
+						<div class="text-center p-4">
+							<p class="text-muted">No connected users</p>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Server Logs -->
+	<div class="row mt-4">
+		<div class="col-12">
+			<div class="card">
+				<div class="card-header bg-dark text-white">
+					<h5 class="mb-0">
+						Server Logs (@serverLogs.Count)
+						<button class="btn btn-sm btn-light float-end" @onclick="ClearLogs">
+							<i class="fas fa-trash"></i> Clear
+						</button>
+					</h5>
+				</div>
+				<div class="card-body p-0">
+					<div class="console-log">
+						@if (serverLogs.Any())
+						{
+							@foreach (var log in serverLogs)
+							{
+								<div>@log</div>
+							}
+						}
+						else
+						{
+							<div class="text-center text-muted">No logs yet</div>
+						}
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+
+<!-- User Details Modal -->
+@if (showUserModal && selectedUser != null)
+{
+	<div class="modal show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title">User Details - @selectedUser.Id.Substring(0, 8)...</h5>
+					 <button type="button" class="btn-close" @onclick="CloseUserModal"></button>
+				</div>
+				<div class="modal-body">
+					<div class="row">
+						<div class="col-4"><strong>User ID:</strong></div>
+						<div class="col-8"><code>@selectedUser.Id</code></div>
+
+						<div class="col-4"><strong>Connected Time:</strong></div>
+						<div class="col-8">@selectedUser.ConnectedTime.ToString("yyyy-MM-dd HH:mm:ss")</div>
+
+						<div class="col-4"><strong>Duration:</strong></div>
+						<div class="col-8">@GetConnectionDuration(selectedUser.ConnectedTime)</div>
+
+						<div class="col-4"><strong>Status:</strong></div>
+						<div class="col-8">
+							<span class="badge @(selectedUser.IsConnected ? "bg-success" : "bg-danger")">
+								@(selectedUser.IsConnected ? "Connected" : "Disconnected")
+							</span>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" @onclick="CloseUserModal">Close</button>
+					<button type="button" class="btn btn-primary" @onclick=" async () => await Send(selectedUser.Id)">
+						Send Test Message
+					</button>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+@code {
+
+	private bool isRunning = true;
+	private bool isStopping = false;
+	private int ConnectedUsersCount = 0;
+	private List<WebSocketUser> ConnectedUsers = new();
+	private List<string> serverLogs = new();
+	private string broadcastMessage = "Message from Server ...";
+	private bool showUserModal = false;
+	private WebSocketUser selectedUser = null;
+	// private Timer refreshTimer;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await RefreshStatus();
+		SubscribeToEvents();
+
+		// // تنظیم تایمر برای رفریش اتوماتیک هر 5 ثانیه
+		// refreshTimer = new Timer(async _ => await InvokeAsync(RefreshStatus), null, 5000, 5000);
+
+		await AddLogAsync("WebSocket Manager initialized");
+	}
+
+	private void SubscribeToEvents()
+	{
+		WebSocketServer.ClientConnected += OnClientConnected;
+		WebSocketServer.ClientDisconnected += OnClientDisconnected;
+		WebSocketServer.MessageReceived += OnMessageReceived;
+		WebSocketServer.ServerStopped += OnServerStopped;
+	}
+
+	// private void UnsubscribeFromEvents()
+	// {
+	// 	WebSocketServer.ClientConnected -= OnClientConnected;
+	// 	WebSocketServer.ClientDisconnected -= OnClientDisconnected;
+	// 	WebSocketServer.MessageReceived -= OnMessageReceived;
+	// 	WebSocketServer.ServerStopped -= OnServerStopped;
+	// }
+
+	private async void OnClientConnected(object sender, WebSocketClientEventArgs e)
+	{
+		await AddLogAsync($"✅ Client connected: {e.User.Id}");
+		await RefreshStatus();
+	}
+
+	private async void OnClientDisconnected(object sender, WebSocketClientEventArgs e)
+	{
+		await AddLogAsync($"❌ Client disconnected: {e.User.Id}");
+		await RefreshStatus();
+	}
+
+	private async void OnMessageReceived(object sender, MessageReceivedEventArgs e)
+	{
+		await AddLogAsync($"📨 Message from {e.User.Id.Substring(0, 8)}...: {e.Message}");
+	}
+
+	private async void OnServerStopped(object sender, EventArgs e)
+	{
+		isRunning = false;
+		isStopping = false;
+		await AddLogAsync("🛑 Server stopped");
+	}
+
+	private async Task RefreshStatus()
+	{
+		try
+		{
+			ConnectedUsersCount = WebSocketServer.GetConnectedUsersCount();
+			ConnectedUsers = WebSocketServer.GetAllUsers();
+			StateHasChanged();
+		}
+		catch (Exception ex)
+		{
+			await AddLogAsync($"❌ Error refreshing status: {ex.Message}");
+		}
+	}
+
+	private void StartServer()
+	{
+		WebSocketServer.Start();
+		isRunning = true;
+		_ = AddLogAsync("🚀 Server started");
+	}
+
+	private async Task StopServer()
+	{
+		isStopping = true;
+		await InvokeAsync(StateHasChanged); // Update UI immediately
+
+		try
+		{
+			await WebSocketServer.StopAsync();
+			await AddLogAsync("🛑 Server stop requested");
+		}
+		catch (Exception ex)
+		{
+			await AddLogAsync($"❌ Error stopping server: {ex.Message}");
+			isStopping = false;
+			await InvokeAsync(StateHasChanged);
+		}
+	}
+
+	private async Task BroadcastToAll()
+	{
+		try
+		{
+			var message = $"🚀 Test broadcast from server - {DateTime.Now:HH:mm:ss}";
+			await WebSocketServer.SendToAllAsync(message);
+			await AddLogAsync($"📢 Broadcast sent to {ConnectedUsersCount} users: {message}");
+		}
+		catch (Exception ex)
+		{
+			await AddLogAsync($"❌ Error broadcasting: {ex.Message}");
+		}
+	}
+
+	private async Task SendCustomBroadcast()
+	{
+		if (!string.IsNullOrWhiteSpace(broadcastMessage))
+		{
+			try
+			{
+				await WebSocketServer.SendToAllAsync(broadcastMessage);
+				await AddLogAsync($"📢 Broadcast to {ConnectedUsersCount} users: {broadcastMessage}");
+				broadcastMessage = string.Empty;
+			}
+			catch (Exception ex)
+			{
+				await AddLogAsync($"❌ Error broadcasting: {ex.Message}");
+			}
+		}
+	}
+
+	private async Task SendToUser(string userId)
+	{
+		var message = $"👋 Hello from server manager! Time: {DateTime.Now:HH:mm:ss}";
+		try
+		{
+			await WebSocketServer.SendToClientAsync(userId, message);
+			await AddLogAsync($"📤 Message sent to user {userId.Substring(0, 8)}...");
+		}
+		catch (Exception ex)
+		{
+			await AddLogAsync($"❌ Error sending to user {userId.Substring(0, 8)}...: {ex.Message}");
+		}
+	}
+
+	private async Task Send(string userId)
+	{
+		CloseUserModal();
+		await SendToUser(selectedUser.Id);
+	}
+
+	private void ViewUserDetails(string userId)
+	{
+		selectedUser = WebSocketServer.GetUserById(userId);
+		showUserModal = true;
+		StateHasChanged();
+	}
+
+	private void CloseUserModal()
+	{
+		showUserModal = false;
+		selectedUser = null;
+		StateHasChanged();
+	}
+
+	private string GetConnectionDuration(DateTime connectedTime)
+	{
+		var duration = DateTime.Now - connectedTime;
+		return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
+	}
+
+	private async Task AddLogAsync(string message)
+	{
+		var timestamp = DateTime.Now.ToString("HH:mm:ss");
+
+		await InvokeAsync(() =>
+		{
+			serverLogs.Insert(0, $"[{timestamp}] {message}");
+
+			// Keep only last 50 logs
+			if (serverLogs.Count > 50)
+			{
+				serverLogs = serverLogs.Take(50).ToList();
+			}
+
+			StateHasChanged();
+		});
+	}
+
+	private void ClearLogs()
+	{
+		serverLogs.Clear();
+		StateHasChanged();
+	}
+
+	// public async ValueTask DisposeAsync()
+	// {
+	//     refreshTimer?.Dispose();
+	//     UnsubscribeFromEvents();
+
+	//     if (isRunning)
+	//     {
+	//         try
+	//         {
+	//             await WebSocketServer.StopAsync();
+	//         }
+	//         catch
+	//         {
+	//             // Ignore disposal errors
+	//         }
+	//     }
+	// }
+
+	// public void Dispose()
+	// {
+	//     refreshTimer?.Dispose();
+	//     UnsubscribeFromEvents();
+	// }
+}

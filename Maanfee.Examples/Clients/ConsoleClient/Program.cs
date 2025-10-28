@@ -2,12 +2,12 @@
 
 class Program
 {
-    private static WebSocketClient client;
+    private static IWebSocketClient client;
 
     static async Task Main(string[] args)
     {
         //client = new WebSocketClient("ws://localhost:5000/");
-        client = new WebSocketClient("127.0.0.1", 5000);
+        client = new WebSocketClient(new WebSocketOption { Host = "127.0.0.1", Port = 5000 });
 
         // ثبت event handlers
         client.Connected += OnConnected;
@@ -49,21 +49,21 @@ class Program
 
     private static void OnConnected(object sender, EventArgs e)
     {
-        Console.WriteLine("✅ Connected to server!");
+        Console.WriteLine("✅ Console is Connected to server!");
     }
 
     private static void OnMessageReceived(object sender, string message)
     {
-        Console.WriteLine($"📨 Received: {message}");
+        Console.WriteLine($"📨 Console is Received: {message}");
     }
 
     private static void OnConnectionClosed(object sender, string reason)
     {
-        Console.WriteLine($"🔌 Connection closed: {reason}");
+        Console.WriteLine($"🔌 Console Connection closed: {reason}");
     }
 
     private static void OnErrorOccurred(object sender, Exception exception)
     {
-        Console.WriteLine($"💥 Error: {exception.Message}");
+        Console.WriteLine($"💥 Console has Error: {exception.Message}");
     }
 }

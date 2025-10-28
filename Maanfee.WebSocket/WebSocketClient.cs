@@ -3,8 +3,17 @@ using System.Text;
 
 namespace Maanfee.WebSocket
 {
-    public class WebSocketClient : IDisposable
+    public class WebSocketClient : IWebSocketClient, IDisposable
     {
+        public WebSocketClient(WebSocketOption options = null)
+        {
+            _options = options ?? new WebSocketOption();
+            _serverUrl = $"ws://{_options.Host}:{_options.Port}/ws";
+            _webSocket = new ClientWebSocket();
+            _cancellationTokenSource = new CancellationTokenSource();
+        }
+
+        private WebSocketOption _options;
         private ClientWebSocket _webSocket;
         private readonly string _serverUrl;
         private CancellationTokenSource _cancellationTokenSource;
@@ -18,18 +27,47 @@ namespace Maanfee.WebSocket
 
         public bool IsConnected => _webSocket?.State == WebSocketState.Open;
 
-        public WebSocketClient(string ServerUrl = "127.0.0.1", int Port = 5000)
-        {
-            _serverUrl = $"ws://{ServerUrl}:{Port}/ws";
-            _webSocket = new ClientWebSocket();
-            _cancellationTokenSource = new CancellationTokenSource();
-        }
-
         public async Task ConnectAsync()
         {
             if (_isDisposed)
                 throw new ObjectDisposedException(nameof(WebSocketClient));
 
+            if (_options.AutoRetryConnection)
+            {
+                for (int i = 0; i < _options.RetryCount; i++)
+                {
+                    try
+                    {
+                        await InternalConnectAsync();
+                        return;
+                    }
+                    catch (WebSocketException ex)
+                    {
+                        if (i == _options.RetryCount - 1)
+                        {
+                            OnErrorOccurred(ex);
+                            throw;
+                        }
+                        await Task.Delay(_options.RetryDelay);
+                    }
+                }
+            }
+            else
+            {
+                try
+                {
+                    await InternalConnectAsync();
+                }
+                catch (WebSocketException ex)
+                {
+                    OnErrorOccurred(ex);
+                    throw;
+                }
+            }
+        }
+
+        private async Task InternalConnectAsync()
+        {
             try
             {
                 await _webSocket.ConnectAsync(new Uri(_serverUrl), CancellationToken.None);
@@ -38,7 +76,7 @@ namespace Maanfee.WebSocket
 
                 _ = Task.Run(StartReceiving);
             }
-            catch (Exception ex)
+            catch (WebSocketException ex)
             {
                 OnErrorOccurred(ex);
                 throw;
@@ -48,10 +86,10 @@ namespace Maanfee.WebSocket
         public async Task SendMessageAsync(string message)
         {
             if (_isDisposed)
-                throw new ObjectDisposedException(nameof(WebSocketClient));
+                throw new WebSocketException($"{nameof(WebSocketClient)} is disposed");
 
             if (_webSocket.State != WebSocketState.Open)
-                throw new InvalidOperationException("WebSocket is not connected");
+                throw new WebSocketException("WebSocket is not connected");
 
             var bytes = Encoding.UTF8.GetBytes(message);
             await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, _cancellationTokenSource.Token);
@@ -61,7 +99,7 @@ namespace Maanfee.WebSocket
 
         private async Task StartReceiving()
         {
-            var buffer = new byte[4096];
+            var buffer = new byte[_options.BufferSize];
 
             while (!_cancellationTokenSource.Token.IsCancellationRequested && _webSocket.State == WebSocketState.Open)
             {
@@ -84,7 +122,7 @@ namespace Maanfee.WebSocket
                 {
                     break;
                 }
-                catch (Exception ex)
+                catch (WebSocketException ex)
                 {
                     OnErrorOccurred(ex);
                     break;

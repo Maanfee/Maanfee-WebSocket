@@ -16,6 +16,30 @@ namespace WebAPIClient.Controllers
             _logger = logger;
         }
 
+        [HttpPost("SendTest")]
+        public async Task<IActionResult> SendMessage()
+        {
+            try
+            {
+                if (!_webSocketClient.IsConnected)
+                {
+                    return BadRequest(new { error = "WebSocket is not connected" });
+                }
+
+                await _webSocketClient.SendMessageAsync($"Web API Message at {DateTime.Now}");
+
+                //_logger.LogInformation("Message sent via WebSocket: {Message}", request.Message);
+
+                return Ok(new { status = "Message sent successfully" });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending message via WebSocket");
+                return StatusCode(500, new { error = ex.Message });
+            }
+        }
+
+
         [HttpPost("send")]
         public async Task<IActionResult> SendMessage([FromBody] SendMessageRequest request)
         {

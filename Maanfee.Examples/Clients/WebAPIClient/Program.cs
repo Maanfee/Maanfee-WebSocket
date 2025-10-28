@@ -13,7 +13,7 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<WebSocketClient>(provider =>
 {
     // آدرس سرور WebSocket اصلی
-    var client = new WebSocketClient("127.0.0.1", 5000);
+    var client = new WebSocketClient(new WebSocketOption { Host = "127.0.0.1", Port = 5000 });
     return client;
 });
 

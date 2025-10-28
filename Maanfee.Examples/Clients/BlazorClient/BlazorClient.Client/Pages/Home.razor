@@ -1,0 +1,103 @@
+﻿@page "/"
+@using Maanfee.WebSocket
+@implements IDisposable
+
+<PageTitle>WebSocket Client</PageTitle>
+
+<div class="mb-3">
+	<span class="badge @(isConnected ? "bg-success" : "bg-danger")">
+		@(isConnected ? "Connected" : "Disconnected")
+	</span>
+</div>
+
+<button class="btn btn-primary" @onclick="SendTestMessage">Send Test Message</button>
+
+<div class="mt-3">
+	<h5>Messages:</h5>
+	<div style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px;">
+		@foreach (var msg in messages)
+		{
+			<p>@msg</p>
+		}
+	</div>
+</div>
+
+@code {
+	private WebSocketClient client = new WebSocketClient();
+	private List<string> messages = new List<string>();
+	private bool isConnected = false;
+
+	protected override async Task OnInitializedAsync()
+	{
+		await InitializeClient();
+	}
+
+	private async Task InitializeClient()
+	{
+		client.Connected += (sender, e) =>
+		{
+			InvokeAsync(() =>
+			{
+				isConnected = true;
+				messages.Add($"[{DateTime.Now:T}] Connected to server!");
+				StateHasChanged();
+			});
+		};
+
+		client.MessageReceived += (sender, message) =>
+		{
+		    InvokeAsync(() =>
+		    {
+		        messages.Add($"[{DateTime.Now:T}] Received: {message}");
+		        StateHasChanged();
+		    });
+		};
+
+		client.ConnectionClosed += (sender, reason) =>
+		{
+		    InvokeAsync(() =>
+		    {
+		        isConnected = false;
+		        messages.Add($"[{DateTime.Now:T}] Connection closed: {reason}");
+		        StateHasChanged();
+		    });
+		};
+
+		client.ErrorOccurred += (sender, ex) =>
+		{
+		    InvokeAsync(() =>
+		    {
+		        messages.Add($"[{DateTime.Now:T}] Error: {ex.Message}");
+		        StateHasChanged();
+		    });
+		};
+
+		try
+		{
+		    await client.ConnectAsync();
+		}
+		catch (Exception ex)
+		{
+		    messages.Add($"[{DateTime.Now:T}] Connection error: {ex.Message}");
+		    StateHasChanged();
+		}
+	}
+
+	private async Task SendTestMessage()
+	{
+		try
+		{
+			await client.SendMessageAsync($"Blazor Message at {DateTime.Now:T}");
+		}
+		catch (Exception ex)
+		{
+			messages.Add($"[{DateTime.Now:T}] Send error: {ex.Message}");
+			StateHasChanged();
+		}
+	}
+
+	public void Dispose()
+	{
+		client?.Dispose();
+	}
+}

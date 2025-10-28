@@ -1,4 +1,5 @@
 ﻿using Maanfee.WebSocket;
+using System.Net.WebSockets;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,7 +37,7 @@ app.UseAuthorization();
 app.MapControllers();
 
 // ********************************
-// 🔥 WebSocket Middleware - این قسمت مهم است
+// 🔥 WebSocket Middleware
 app.UseWebSockets(); // حتما این خط باید باشد
 
 var webSocketServer = app.Services.GetRequiredService<WebSocketServer>();
@@ -45,17 +46,17 @@ webSocketServer.Start();
 // ثبت event handlers برای سرور
 webSocketServer.ClientConnected += (sender, e) =>
 {
-    Console.WriteLine($"[SERVER] ✅ Client connected: {e.ClientId}");
+    Console.WriteLine($"[SERVER] ✅ Client connected: {e.User.Id}");
 };
 
 webSocketServer.ClientDisconnected += (sender, e) =>
 {
-    Console.WriteLine($"[SERVER] ❌ Client disconnected: {e.ClientId}");
+    Console.WriteLine($"[SERVER] ❌ Client disconnected: {e.User.Id}");
 };
 
 webSocketServer.MessageReceived += (sender, e) =>
 {
-    Console.WriteLine($"[SERVER] 📩 Received from {e.ClientId}: {e.Message}");
+    Console.WriteLine($"[SERVER] 📩 Received from {e.User.Id}: {e.Message}");
 };
 
 // WebSocket endpoint middleware
@@ -65,8 +66,21 @@ app.Use(async (context, next) =>
     {
         if (context.WebSockets.IsWebSocketRequest)
         {
-            var webSocket = await context.WebSockets.AcceptWebSocketAsync();
-            await webSocketServer.HandleWebSocketConnection(webSocket);
+            try
+            {
+                var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+                await webSocketServer.HandleWebSocketConnectionAsync(webSocket);
+            }
+            catch (System.Net.WebSockets.WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
+            {
+                // این خطا طبیعی است وقتی کلاینت connection را می‌بندد
+                Console.WriteLine($"WebSocket connection closed prematurely: {ex.Message}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"WebSocket error: {ex.Message}");
+                context.Response.StatusCode = 500;
+            }
         }
         else
         {
