@@ -1,6 +1,14 @@
-﻿# Maanfee.WebSocket Library
-
-A comprehensive WebSocket library for .NET providing both client and server implementations with support for multiple application types.
+﻿<div align="center">
+  <picture>
+    <img alt="Maanfee" src="SolutionItems/Contents/Logo.png">
+  </picture>
+  <h2 align="center">
+        Maanfee WebSocket
+  </h2>
+  <p align="center">
+        A comprehensive WebSocket library for .NET providing both client and server implementations with support for multiple application types.
+  </p>
+</div>
 
 ## 📦 Packages
 
