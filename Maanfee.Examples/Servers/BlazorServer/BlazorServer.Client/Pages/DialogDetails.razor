@@ -1,0 +1,79 @@
+﻿
+<MudDialog>
+	<DialogContent>
+		<MudCard Class="mt-2">
+			<MudToolBar Dense>
+				<MudText Color="Color.Primary">
+					Details
+				</MudText>
+				<MudSpacer />
+				<MudTooltip Text="Send Test Message" Color="Color.Tertiary" Arrow>
+					<MudIconButton OnClick="SendToUser" Icon="@Icons.Material.Filled.Send" Color="Color.Info" />
+				</MudTooltip>
+				<MudTooltip Text="Cancel" Color="Color.Tertiary" Arrow>
+					<MudIconButton OnClick="Close" Icon="@Icons.Material.Filled.Close" Color="Color.Error" />
+				</MudTooltip>
+			</MudToolBar>
+			<MudDivider DividerType="DividerType.FullWidth" />
+			<MudCardContent>
+				<MudGrid>
+					<MudItem xs="12" sm="4">
+						<MudText Typo="Typo.body1"><strong>User ID:</strong></MudText>
+					</MudItem>
+					<MudItem xs="12" sm="8">
+						<MudText Typo="Typo.body1"><code>@SelectedUser?.Id</code></MudText>
+					</MudItem>
+
+					<MudItem xs="12" sm="4">
+						<MudText Typo="Typo.body1"><strong>Connected Time:</strong></MudText>
+					</MudItem>
+					<MudItem xs="12" sm="8">
+						<MudText Typo="Typo.body1">@SelectedUser?.ConnectedTime.ToString("yyyy-MM-dd HH:mm:ss")</MudText>
+					</MudItem>
+
+					<MudItem xs="12" sm="4">
+						<MudText Typo="Typo.body1"><strong>Duration:</strong></MudText>
+					</MudItem>
+					<MudItem xs="12" sm="8">
+						<MudText Typo="Typo.body1">@GetConnectionDuration(SelectedUser.ConnectedTime)</MudText>
+					</MudItem>
+					<MudItem xs="12" sm="4">
+						<MudText Typo="Typo.body1"><strong>Status:</strong></MudText>
+					</MudItem>
+					<MudItem xs="12" sm="8">
+						<MudChip Variant="Variant.Filled" T="string" Size="Size.Small"
+								 Color="@(SelectedUser.IsConnected ? Color.Success : Color.Error)">
+							@(SelectedUser.IsConnected ? "Connected" : "Disconnected")
+						</MudChip>
+					</MudItem>
+				</MudGrid>
+			</MudCardContent>
+		</MudCard>
+	</DialogContent>
+</MudDialog>
+
+@code {
+
+	[CascadingParameter]
+	public IMudDialogInstance MudDialog { get; set; }
+
+	private void Close() => MudDialog.Close();
+
+	// *****************************************************
+
+	[Parameter]
+	public WebSocketUser SelectedUser { get; set; }
+
+	private string GetConnectionDuration(DateTime connectedTime)
+	{
+		var duration = DateTime.Now - connectedTime;
+		return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
+	}
+
+	private async Task SendToUser()
+	{
+		var message = $"👋 Hello from server manager! Time: {DateTime.Now:HH:mm:ss}";
+		MudDialog.Close(DialogResult.Ok(message));
+	}
+
+}

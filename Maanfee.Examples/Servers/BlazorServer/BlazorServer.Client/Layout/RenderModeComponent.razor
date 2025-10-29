@@ -1,0 +1,5 @@
+﻿@namespace BlazorServer.Client
+
+<MudChip T="string" Icon="@Icons.Material.Filled.VerifiedUser" Color="Color.Info" Label="true">
+    @(OperatingSystem.IsBrowser() ? "CSR" : "SSR")
+</MudChip>

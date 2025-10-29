@@ -5,9 +5,11 @@ A comprehensive WebSocket library for .NET providing both client and server impl
 ## 📦 Packages
 
 ### Maanfee.WebSocket
-Core WebSocket library containing:
-- `WebSocketServer` - Full-featured WebSocket server
-- `WebSocketClient` - WebSocket client implementation
+A high-performance WebSocket library for .NET including:
+- `WebSocketServer` - Full-featured WebSocket server with user management
+- `WebSocketClient` - WebSocket client with auto-reconnection capability
+- `WebSocketOption` - Advanced configuration for connection settings
+- `WebSocketUser` - Management of connected user information
 - Event arguments and helper classes
 
 ### Maanfee.Examples
@@ -20,19 +22,22 @@ Example implementations demonstrating usage in different application types.
 | Method | Description |
 |--------|-------------|
 | `Start()` | Start the server |
-| `StopAsync()` | Stop the server gracefully |
+| `StopAsync()` | Gracefully stop the server |
 | `HandleWebSocketConnectionAsync(WebSocket)` | Handle new WebSocket connections |
 | `SendToAllAsync(string)` | Send message to all connected clients |
-| `SendToClientAsync(string clientId, string message)` | Send message to specific client |
-| `GetConnectedClientsCount()` | Get number of connected clients |
+| `SendToClientAsync(string , string)` | Send message to specific client |
+| `GetConnectedUsersCount()` | Get count of connected users |
+| `GetConnectedUserIds()` | Get list of connected user IDs |
+| `GetUserById(string)` | Get user by ID |
+| `GetAllUsers()` | Get all users |
 | `Dispose()` | Clean up resources |
 
 | Events | Description |
 |--------|-------------|
-| `ClientConnected` | When client connected |
-| `ClientDisconnected` | When Connection disconnected |
-| `ServerStopped` |  When server stopped |
-| `Connected` | When message received |
+| `ClientConnected` | When new client connects |
+| `ClientDisconnected` | When client disconnects |
+| `ServerStopped` |  When server stops |
+| `MessageReceived` | When message received from client |
 
 ## WebSocketClient Methods
 
@@ -45,12 +50,19 @@ Example implementations demonstrating usage in different application types.
 
 | Events | Description |
 |--------|-------------|
-| `MessageReceived` | Received messages |
-| `ConnectionClosed` | Connection closed |
-| `ErrorOccurred` | Error occurred |
-| `Connected` | Connect to the server |
+| `MessageReceived` | When message received from server |
+| `ConnectionClosed` | When connection closes |
+| `ErrorOccurred` | When error occurs |
+| `Connected` | When connection established successfully |
 
 # 🚀 Quick Start
+
+### 📦 Installation
+
+**Package Manager**
+```xml
+<PackageReference Include="Maanfee.WebSocket" Version="*" />
+```
 # Solution Configuration Guide
 
 ## Steps to Configure Multiple Startup Projects
@@ -75,6 +87,13 @@ Example implementations demonstrating usage in different application types.
 
 ### Console Server Profile  
 - **Server**: Console Server
+- **Clients**:
+  - Blazor
+  - Web API
+  - Console
+
+### Blazor Server Profile (Recommended)
+- **Server**: Blazor Server
 - **Clients**:
   - Blazor
   - Web API

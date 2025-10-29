@@ -8,4 +8,12 @@
 @using Microsoft.JSInterop
 @using BlazorServer.Client
 @using BlazorServer.Client.Layout
+
+@using Maanfee.WebSocket
+@inject WebSocketServer WebSocketServer
+
+@* @inject HttpClient Http *@
+
 @using MudBlazor
+@inject IDialogService Dialog
+@inject ISnackbar Snackbar

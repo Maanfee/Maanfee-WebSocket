@@ -1,272 +1,211 @@
 ﻿@page "/"
-@using Maanfee.WebSocket
-@inject WebSocketServer WebSocketServer
-@* @implements IDisposable
-@implements IAsyncDisposable *@
+@implements IAsyncDisposable
+@implements IDisposable
 
 <PageTitle>WebSocket Server Manager</PageTitle>
 
-<style>
-
-	.console-log {
-		height: 300px;
-		overflow-y: auto;
-		background-color: #1e1e1e;
-		color: #d4d4d4;
-		padding: 10px;
-		font-family: 'Courier New', monospace;
-		font-size: 0.9rem;
-		line-height: 1.4;
-	}
-
-		.console-log div {
-			border-bottom: 1px solid #333;
-			padding: 2px 0;
-			word-break: break-all;
-		}
-
-			.console-log div:last-child {
-				border-bottom: none;
-			}
-
-		/* Custom scrollbar for console */
-		.console-log::-webkit-scrollbar {
-			width: 8px;
-		}
-
-		.console-log::-webkit-scrollbar-track {
-			background: #2d2d2d;
-		}
-
-		.console-log::-webkit-scrollbar-thumb {
-			background: #555;
-			border-radius: 4px;
-		}
-
-			.console-log::-webkit-scrollbar-thumb:hover {
-				background: #777;
-			}
-
-</style>
-
-<div class="container-fluid">
-	<div class="row">
-		<div class="col-12">
-			<h6>WebSocket Server Manager</h6>
-		</div>
-	</div>
-
-	<!-- Server Status -->
-	<div class="row mb-4">
-		<div class="col-md-6">
-			<div class="card">
-				<div class="card-header bg-primary text-white">
-					<h5 class="mb-0">Server Status</h5>
-				</div>
-				<div class="card-body">
-					<div class="row">
-						<div class="col-6">
-							<strong>Status:</strong>
-							<span class="badge @(isRunning ? "bg-success" : "bg-danger")">
-								@(isRunning ? "Running" : "Stopped")
-							</span>
-						</div>
-						<div class="col-6">
-							<strong>Connected Users:</strong>
-							<span class="badge bg-info">@ConnectedUsersCount</span>
-						</div>
-					</div>
-					<div class="row mt-3">
-						<div class="col-12">
-							@if (isRunning)
+<MudPaper Elevation="25" Class="mt-6">
+	<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" PanelClass="pa-6">
+		@* Server Status *@
+		<MudTabPanel Text="Server Status">
+			<MudGrid>
+				<MudItem md="12">
+					<MudCard>
+						<MudToolBar Dense>
+							<MudText Typo="Typo.h6" Color="Color.Primary">Server Status</MudText>
+						</MudToolBar>
+						<MudDivider DividerType="DividerType.FullWidth" />
+						<MudCardContent>
+							<MudGrid>
+								<MudItem md="4">
+									<MudText>
+										<strong>Status:</strong>
+										<MudChip T="string" Color="isRunning? Color.Success: Color.Error" Size="Size.Small">
+											@(isRunning ? "Running" : "Stopped")
+										</MudChip>
+									</MudText>
+								</MudItem>
+								<MudItem md="4">
+									<MudText>
+										<strong>Connected Users:</strong>
+										<MudChip T="int" Color="Color.Info" Size="Size.Small">
+											@ConnectedUsersCount
+										</MudChip>
+									</MudText>
+								</MudItem>
+								<MudItem md="4">
+									<RenderModeComponent />
+								</MudItem>
+								<MudItem md="12">
+									<MudStack Row="true">
+										@if (isRunning)
+										{
+											<MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="StopServer"
+													   Disabled="@isStopping" StartIcon="@Icons.Material.Filled.Stop">
+												@(isStopping ? "Stopping..." : "Stop Server")
+											</MudButton>
+										}
+										else
+										{
+											<MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="StartServer"
+													   StartIcon="@Icons.Material.Filled.PlayArrow">
+												Start Server
+											</MudButton>
+										}
+										<MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="RefreshStatus"
+												   StartIcon="@Icons.Material.Filled.Refresh">
+											Refresh
+										</MudButton>
+									</MudStack>
+								</MudItem>
+							</MudGrid>
+						</MudCardContent>
+					</MudCard>
+				</MudItem>
+			</MudGrid>
+		</MudTabPanel>
+		@* Users *@
+		<MudTabPanel Text="Users" BadgeData="@ConnectedUsersCount" BadgeColor="Color.Info">
+			<MudGrid>
+				<MudItem md="12">
+					<MudCard>
+						<MudToolBar Dense>
+							<MudText Typo="Typo.h6" Color="Color.Primary">Connected Users (@ConnectedUsersCount)</MudText>
+							<MudSpacer />
+							<MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Secondary"
+										   Size="Size.Small" Variant="Variant.Outlined" Class="float-end"
+										   OnClick="RefreshStatus" />
+						</MudToolBar>
+						<MudDivider DividerType="DividerType.FullWidth" />
+						<MudCardContent Class="pa-0">
+							@if (ConnectedUsers.Any())
 							{
-								<button class="btn btn-danger" @onclick="StopServer" disabled="@isStopping">
-									<i class="fas fa-stop"></i>
-									@(isStopping ? "Stopping..." : "Stop Server")
-								</button>
+								<MudTable Items="@ConnectedUsers" Hover="true" Striped="true" Class="mb-0">
+									<HeaderContent>
+										<MudTh>User ID</MudTh>
+										<MudTh>Connection Time</MudTh>
+										<MudTh>Duration</MudTh>
+										<MudTh>Status</MudTh>
+										<MudTh>Actions</MudTh>
+									</HeaderContent>
+									<RowTemplate>
+										<MudTd DataLabel="User ID">
+											<MudTooltip Text="@context.Id">
+												<MudText>@context.Id.Substring(0, 8)...</MudText>
+											</MudTooltip>
+										</MudTd>
+										<MudTd DataLabel="Connection Time">
+											<MudText>@context.ConnectedTime.ToString("HH:mm:ss")</MudText>
+										</MudTd>
+										<MudTd DataLabel="Duration">
+											<MudText>@GetConnectionDuration(context.ConnectedTime)</MudText>
+										</MudTd>
+										<MudTd DataLabel="Status">
+											<MudChip T="string" Color="Color.Success" Size="Size.Small">Connected</MudChip>
+										</MudTd>
+										<MudTd DataLabel="Actions">
+											<MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
+													   StartIcon="@Icons.Material.Filled.Send" OnClick="() => SendToUser(context.Id)">
+												Send
+											</MudButton>
+											<MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small"
+													   StartIcon="@Icons.Material.Filled.Info"
+													   OnClick="() => OpenDetailsDialog(context.Id)" Class="ml-2">
+												Details
+											</MudButton>
+										</MudTd>
+									</RowTemplate>
+								</MudTable>
 							}
 							else
 							{
-
-								<button class="btn btn-success" @onclick="StartServer">
-									<i class="fas fa-play"></i> Start Server
-								</button>
+								<MudText Align="Align.Center" Class="pa-4">
+									<MudIcon Icon="Icons.Material.Filled.People" Size="Size.Large" Class="mb-2" />
+									<br />
+									No connected users
+								</MudText>
 							}
-							<button class="btn btn-warning" @onclick="RefreshStatus">
-								<i class="fas fa-sync-alt"></i> Refresh
-							</button>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-
-		<!-- Quick Actions -->
-		<div class="col-md-6">
-			<div class="card">
-				<div class="card-header bg-info text-white">
-					<h5 class="mb-0">Quick Actions</h5>
-				</div>
-				<div class="card-body">
-					<div class="row">
-						<div class="col-12 mb-2">
-							<button class="btn btn-outline-primary w-100" @onclick="BroadcastToAll"
-									disabled="@(!isRunning || ConnectedUsersCount == 0)">
-								<i class="fas fa-broadcast-tower"></i> Broadcast Test Message
-							</button>
-						</div>
-						<div class="col-12">
-							<div class="input-group">
-								<input @bind="broadcastMessage" @bind:event="oninput"
-									   class="form-control" placeholder="Enter message to broadcast" />
-								<button class="btn btn-primary" @onclick="SendCustomBroadcast"
-										disabled="@(!isRunning || string.IsNullOrWhiteSpace(broadcastMessage))">
-									<i class="fas fa-paper-plane"></i> Send
-								</button>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Connected Users -->
-	<div class="row">
-		<div class="col-12">
-			<div class="card">
-				<div class="card-header bg-success text-white">
-					<h5 class="mb-0">
-						Connected Users (@ConnectedUsersCount)
-						<button class="btn btn-sm btn-light float-end" @onclick="RefreshStatus">
-							<i class="fas fa-sync-alt"></i>
-						</button>
-					</h5>
-				</div>
-				<div class="card-body p-0">
-					@if (ConnectedUsers.Any())
-					{
-						<div class="table-responsive">
-							<table class="table table-striped table-hover mb-0">
-								<thead>
-									<tr>
-										<th>User ID</th>
-										<th>Connection Time</th>
-										<th>Duration</th>
-										<th>Status</th>
-										<th>Actions</th>
-									</tr>
-								</thead>
-								<tbody>
-									@foreach (var user in ConnectedUsers)
+						</MudCardContent>
+					</MudCard>
+				</MudItem>
+			</MudGrid>
+		</MudTabPanel>
+		@* Quick Actions *@
+		<MudTabPanel Text="Quick Actions">
+			<MudItem md="12">
+				<MudCard>
+					<MudToolBar Dense>
+						<MudText Typo="Typo.h6" Color="Color.Primary">Quick Actions</MudText>
+					</MudToolBar>
+					<MudDivider DividerType="DividerType.FullWidth" />
+					<MudCardContent>
+						<MudGrid>
+							<!-- Broadcast Test Message Button -->
+							<MudItem xs="12" Class="mb-2">
+								<MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="BroadcastToAll"
+										   StartIcon="@Icons.Material.Filled.BroadcastOnPersonal"
+										   Disabled="@(!isRunning || ConnectedUsersCount == 0)" FullWidth="true">
+									Broadcast Test Message
+								</MudButton>
+							</MudItem>
+							<!-- Custom Broadcast Input -->
+							<MudItem xs="12">
+								<MudGrid>
+									<MudItem xs="10">
+										<MudTextField @bind-Value="broadcastMessage" Variant="Variant.Outlined"
+													  Placeholder="Enter message to broadcast" Immediate="true" />
+									</MudItem>
+									<MudItem xs="2">
+										<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Send"
+												   OnClick="SendCustomBroadcast" FullWidth="true"
+												   Disabled="@(!isRunning || string.IsNullOrWhiteSpace(broadcastMessage))">
+											Send
+										</MudButton>
+									</MudItem>
+								</MudGrid>
+							</MudItem>
+						</MudGrid>
+					</MudCardContent>
+				</MudCard>
+			</MudItem>
+		</MudTabPanel>
+		@* Server Logs *@
+		<MudTabPanel Text="Server Logs">
+			<MudGrid>
+				<MudItem xs="12">
+					<MudCard>
+						<MudToolBar Dense>
+							<MudText Typo="Typo.h6" Color="Color.Primary">Server Logs (@ServerLogs.Count)</MudText>
+							<MudSpacer />
+							<MudButton Variant="Variant.Filled" Color="Color.Error" Size="Size.Small"
+									   EndIcon="@Icons.Material.Filled.Delete" OnClick="ClearLogs">
+								Clear
+							</MudButton>
+						</MudToolBar>
+						<MudDivider DividerType="DividerType.FullWidth" />
+						<MudCardContent Class="pa-0">
+							<MudPaper Class="console-log" Elevation="0">
+								@if (ServerLogs.Any())
+								{
+									@foreach (var log in ServerLogs)
 									{
-										<tr>
-											<td title="@user.Id">@user.Id.Substring(0, 8)...</td>
-											<td>@user.ConnectedTime.ToString("HH:mm:ss")</td>
-											<td>@GetConnectionDuration(user.ConnectedTime)</td>
-											<td>
-												<span class="badge bg-success">Connected</span>
-											</td>
-											<td>
-												<button class="btn btn-sm btn-outline-primary"
-														@onclick="() => SendToUser(user.Id)"
-														title="Send test message">
-													<i class="fas fa-paper-plane"></i> Send
-												</button>
-												<button class="btn btn-sm btn-outline-info"
-														@onclick="() => ViewUserDetails(user.Id)"
-														title="View details">
-													<i class="fas fa-info-circle"></i> Details
-												</button>
-											</td>
-										</tr>
+										<MudText>@log</MudText>
 									}
-								</tbody>
-							</table>
-						</div>
-					}
-					else
-					{
-						<div class="text-center p-4">
-							<p class="text-muted">No connected users</p>
-						</div>
-					}
-				</div>
-			</div>
-		</div>
-	</div>
-
-	<!-- Server Logs -->
-	<div class="row mt-4">
-		<div class="col-12">
-			<div class="card">
-				<div class="card-header bg-dark text-white">
-					<h5 class="mb-0">
-						Server Logs (@serverLogs.Count)
-						<button class="btn btn-sm btn-light float-end" @onclick="ClearLogs">
-							<i class="fas fa-trash"></i> Clear
-						</button>
-					</h5>
-				</div>
-				<div class="card-body p-0">
-					<div class="console-log">
-						@if (serverLogs.Any())
-						{
-							@foreach (var log in serverLogs)
-							{
-								<div>@log</div>
-							}
-						}
-						else
-						{
-							<div class="text-center text-muted">No logs yet</div>
-						}
-					</div>
-				</div>
-			</div>
-		</div>
-	</div>
-</div>
-
-<!-- User Details Modal -->
-@if (showUserModal && selectedUser != null)
-{
-	<div class="modal show d-block" style="background-color: rgba(0,0,0,0.5);" tabindex="-1">
-		<div class="modal-dialog">
-			<div class="modal-content">
-				<div class="modal-header">
-					<h5 class="modal-title">User Details - @selectedUser.Id.Substring(0, 8)...</h5>
-					 <button type="button" class="btn-close" @onclick="CloseUserModal"></button>
-				</div>
-				<div class="modal-body">
-					<div class="row">
-						<div class="col-4"><strong>User ID:</strong></div>
-						<div class="col-8"><code>@selectedUser.Id</code></div>
-
-						<div class="col-4"><strong>Connected Time:</strong></div>
-						<div class="col-8">@selectedUser.ConnectedTime.ToString("yyyy-MM-dd HH:mm:ss")</div>
-
-						<div class="col-4"><strong>Duration:</strong></div>
-						<div class="col-8">@GetConnectionDuration(selectedUser.ConnectedTime)</div>
-
-						<div class="col-4"><strong>Status:</strong></div>
-						<div class="col-8">
-							<span class="badge @(selectedUser.IsConnected ? "bg-success" : "bg-danger")">
-								@(selectedUser.IsConnected ? "Connected" : "Disconnected")
-							</span>
-						</div>
-					</div>
-				</div>
-				<div class="modal-footer">
-					<button type="button" class="btn btn-secondary" @onclick="CloseUserModal">Close</button>
-					<button type="button" class="btn btn-primary" @onclick=" async () => await Send(selectedUser.Id)">
-						Send Test Message
-					</button>
-				</div>
-			</div>
-		</div>
-	</div>
-}
+								}
+								else
+								{
+									<MudText Align="Align.Center" Color="Color.Default" Class="text-muted">
+										No logs yet
+									</MudText>
+								}
+							</MudPaper>
+						</MudCardContent>
+					</MudCard>
+				</MudItem>
+			</MudGrid>
+		</MudTabPanel>
+	</MudTabs>
+</MudPaper>
 
 @code {
 
@@ -274,21 +213,36 @@
 	private bool isStopping = false;
 	private int ConnectedUsersCount = 0;
 	private List<WebSocketUser> ConnectedUsers = new();
-	private List<string> serverLogs = new();
+	private List<string> ServerLogs = new();
 	private string broadcastMessage = "Message from Server ...";
-	private bool showUserModal = false;
-	private WebSocketUser selectedUser = null;
-	// private Timer refreshTimer;
+	private bool IsServer => !OperatingSystem.IsBrowser();
 
 	protected override async Task OnInitializedAsync()
 	{
 		await RefreshStatus();
 		SubscribeToEvents();
 
-		// // تنظیم تایمر برای رفریش اتوماتیک هر 5 ثانیه
-		// refreshTimer = new Timer(async _ => await InvokeAsync(RefreshStatus), null, 5000, 5000);
-
 		await AddLogAsync("WebSocket Manager initialized");
+	}
+
+	private async Task RefreshStatus()
+	{
+		if (!IsServer)
+			return;
+
+		try
+		{
+			await InvokeAsync(() =>
+			{
+				ConnectedUsersCount = WebSocketServer.GetConnectedUsersCount();
+				ConnectedUsers = WebSocketServer.GetAllUsers();
+				StateHasChanged();
+			});
+		}
+		catch (Exception ex)
+		{
+			await AddLogAsync($"❌ Error refreshing status: {ex.Message}");
+		}
 	}
 
 	private void SubscribeToEvents()
@@ -299,50 +253,49 @@
 		WebSocketServer.ServerStopped += OnServerStopped;
 	}
 
-	// private void UnsubscribeFromEvents()
-	// {
-	// 	WebSocketServer.ClientConnected -= OnClientConnected;
-	// 	WebSocketServer.ClientDisconnected -= OnClientDisconnected;
-	// 	WebSocketServer.MessageReceived -= OnMessageReceived;
-	// 	WebSocketServer.ServerStopped -= OnServerStopped;
-	// }
+	private void UnsubscribeFromEvents()
+	{
+		WebSocketServer.ClientConnected -= OnClientConnected;
+		WebSocketServer.ClientDisconnected -= OnClientDisconnected;
+		WebSocketServer.MessageReceived -= OnMessageReceived;
+		WebSocketServer.ServerStopped -= OnServerStopped;
+	}
 
 	private async void OnClientConnected(object sender, WebSocketClientEventArgs e)
 	{
-		await AddLogAsync($"✅ Client connected: {e.User.Id}");
-		await RefreshStatus();
+		await InvokeAsync(async () =>
+				{
+					await AddLogAsync($"✅ Client connected: {e.User.Id}");
+					await RefreshStatus();
+				});
 	}
 
 	private async void OnClientDisconnected(object sender, WebSocketClientEventArgs e)
 	{
-		await AddLogAsync($"❌ Client disconnected: {e.User.Id}");
-		await RefreshStatus();
+		await InvokeAsync(async () =>
+				{
+					await AddLogAsync($"❌ Client disconnected: {e.User.Id}");
+					await RefreshStatus();
+				});
 	}
 
 	private async void OnMessageReceived(object sender, MessageReceivedEventArgs e)
 	{
-		await AddLogAsync($"📨 Message from {e.User.Id.Substring(0, 8)}...: {e.Message}");
+		await InvokeAsync(async () =>
+		{
+			await AddLogAsync($"📨 Message from {e.User.Id.Substring(0, 8)}...: {e.Message}");
+		});
 	}
 
 	private async void OnServerStopped(object sender, EventArgs e)
 	{
-		isRunning = false;
-		isStopping = false;
-		await AddLogAsync("🛑 Server stopped");
-	}
-
-	private async Task RefreshStatus()
-	{
-		try
+		await InvokeAsync(async () =>
 		{
-			ConnectedUsersCount = WebSocketServer.GetConnectedUsersCount();
-			ConnectedUsers = WebSocketServer.GetAllUsers();
-			StateHasChanged();
-		}
-		catch (Exception ex)
-		{
-			await AddLogAsync($"❌ Error refreshing status: {ex.Message}");
-		}
+			isRunning = false;
+			isStopping = false;
+			await AddLogAsync("🛑 Server stopped");
+			await RefreshStatus();
+		});
 	}
 
 	private void StartServer()
@@ -415,31 +368,13 @@
 		}
 	}
 
-	private async Task Send(string userId)
-	{
-		CloseUserModal();
-		await SendToUser(selectedUser.Id);
-	}
-
-	private void ViewUserDetails(string userId)
-	{
-		selectedUser = WebSocketServer.GetUserById(userId);
-		showUserModal = true;
-		StateHasChanged();
-	}
-
-	private void CloseUserModal()
-	{
-		showUserModal = false;
-		selectedUser = null;
-		StateHasChanged();
-	}
-
 	private string GetConnectionDuration(DateTime connectedTime)
 	{
 		var duration = DateTime.Now - connectedTime;
 		return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
 	}
+
+	// *************************************************
 
 	private async Task AddLogAsync(string message)
 	{
@@ -447,12 +382,12 @@
 
 		await InvokeAsync(() =>
 		{
-			serverLogs.Insert(0, $"[{timestamp}] {message}");
+			ServerLogs.Insert(0, $"[{timestamp}] {message}");
 
 			// Keep only last 50 logs
-			if (serverLogs.Count > 50)
+			if (ServerLogs.Count > 50)
 			{
-				serverLogs = serverLogs.Take(50).ToList();
+				ServerLogs = ServerLogs.Take(50).ToList();
 			}
 
 			StateHasChanged();
@@ -461,31 +396,106 @@
 
 	private void ClearLogs()
 	{
-		serverLogs.Clear();
+		ServerLogs.Clear();
 		StateHasChanged();
 	}
 
-	// public async ValueTask DisposeAsync()
-	// {
-	//     refreshTimer?.Dispose();
-	//     UnsubscribeFromEvents();
+	#region - Details -
 
-	//     if (isRunning)
-	//     {
-	//         try
-	//         {
-	//             await WebSocketServer.StopAsync();
-	//         }
-	//         catch
-	//         {
-	//             // Ignore disposal errors
-	//         }
-	//     }
-	// }
+	private async Task OpenDetailsDialog<T>(T userId)
+	{
+		var selectedUser = WebSocketServer.GetUserById(userId?.ToString());
 
-	// public void Dispose()
-	// {
-	//     refreshTimer?.Dispose();
-	//     UnsubscribeFromEvents();
-	// }
+		DialogParameters DialogParameters = new DialogParameters();
+		DialogParameters.Add("SelectedUser", selectedUser);
+
+		var dialog = await Dialog.ShowAsync<DialogDetails>(string.Empty, DialogParameters,
+			new DialogOptions()
+			{
+				NoHeader = true,
+				MaxWidth = MaxWidth.Medium,
+				FullWidth = true,
+				Position = DialogPosition.Center,
+				BackgroundClass = "Dialog-Blur",
+				CloseOnEscapeKey = true,
+			});
+
+		var result = await dialog.Result;
+
+		if (!result.Canceled)
+		{
+			if (result.Data != null)
+			{
+				try
+				{
+					await WebSocketServer.SendToClientAsync(selectedUser?.Id, (string)result.Data);
+					await AddLogAsync($"📤 Message sent to user {selectedUser?.Id.Substring(0, 8)}...");
+				}
+				catch (Exception ex)
+				{
+					await AddLogAsync($"❌ Error sending to user {selectedUser?.Id.Substring(0, 8)}...: {ex.Message}");
+				}
+				selectedUser = null;
+				StateHasChanged();
+			}
+		}
+	}
+
+	#endregion
+
+	// *************************************************
+
+	public async ValueTask DisposeAsync()
+	{
+		UnsubscribeFromEvents();
+	}
+
+	public void Dispose()
+	{
+		UnsubscribeFromEvents();
+	}
+
 }
+
+<style>
+
+	.console-log {
+		height: 300px;
+		overflow-y: auto;
+		background-color: #1e1e1e;
+		color: #d4d4d4;
+		padding: 10px;
+		font-family: 'Courier New', monospace;
+		font-size: 0.9rem;
+		line-height: 1.4;
+	}
+
+		.console-log div {
+			border-bottom: 1px solid #333;
+			padding: 2px 0;
+			word-break: break-all;
+		}
+
+			.console-log div:last-child {
+				border-bottom: none;
+			}
+
+		/* Custom scrollbar for console */
+		.console-log::-webkit-scrollbar {
+			width: 8px;
+		}
+
+		.console-log::-webkit-scrollbar-track {
+			background: #2d2d2d;
+		}
+
+		.console-log::-webkit-scrollbar-thumb {
+			background: #555;
+			border-radius: 4px;
+		}
+
+			.console-log::-webkit-scrollbar-thumb:hover {
+				background: #777;
+			}
+
+</style>
