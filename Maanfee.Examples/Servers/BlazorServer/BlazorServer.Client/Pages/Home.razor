@@ -212,7 +212,7 @@
 	private bool isRunning = true;
 	private bool isStopping = false;
 	private int ConnectedUsersCount = 0;
-	private List<WebSocketUser> ConnectedUsers = new();
+	private List<MaanfeeWebSocketUser> ConnectedUsers = new();
 	private List<string> ServerLogs = new();
 	private string broadcastMessage = "Message from Server ...";
 	private bool IsServer => !OperatingSystem.IsBrowser();
@@ -261,7 +261,7 @@
 		WebSocketServer.ServerStopped -= OnServerStopped;
 	}
 
-	private async void OnClientConnected(object sender, WebSocketClientEventArgs e)
+	private async void OnClientConnected(object sender, MaanfeeWebSocketClientEventArgs e)
 	{
 		await InvokeAsync(async () =>
 				{
@@ -270,7 +270,7 @@
 				});
 	}
 
-	private async void OnClientDisconnected(object sender, WebSocketClientEventArgs e)
+	private async void OnClientDisconnected(object sender, MaanfeeWebSocketClientEventArgs e)
 	{
 		await InvokeAsync(async () =>
 				{
@@ -279,7 +279,7 @@
 				});
 	}
 
-	private async void OnMessageReceived(object sender, MessageReceivedEventArgs e)
+	private async void OnMessageReceived(object sender, MaanfeeMessageReceivedEventArgs e)
 	{
 		await InvokeAsync(async () =>
 		{

@@ -3,7 +3,7 @@ using WS = System.Net.WebSockets.WebSocket;
 
 namespace Maanfee.WebSocket
 {
-    public class WebSocketUser
+    public class MaanfeeWebSocketUser
     {
         public string Id { get; set; }
 
@@ -15,7 +15,7 @@ namespace Maanfee.WebSocket
 
         public string ConnectionInfo { get; set; }
 
-        public WebSocketUser(string id, WS webSocket)
+        public MaanfeeWebSocketUser(string id, WS webSocket)
         {
             Id = id;
             WebSocket = webSocket;

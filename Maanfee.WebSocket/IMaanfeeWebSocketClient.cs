@@ -1,6 +1,6 @@
 ﻿namespace Maanfee.WebSocket
 {
-    public interface IWebSocketClient
+    public interface IMaanfeeWebSocketClient
     {
         Task ConnectAsync();
 
@@ -15,5 +15,9 @@
         event EventHandler<string> ConnectionClosed;
         event EventHandler<Exception> ErrorOccurred;
         event EventHandler Connected;
+
+        // State management
+        WebSocketClientState State { get; }
+        event EventHandler<WebSocketStateChangedEventArgs<WebSocketClientState>> StateChanged;
     }
 }

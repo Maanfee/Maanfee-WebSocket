@@ -2,7 +2,7 @@
 
 namespace Maanfee.WebSocket
 {
-    public class MessageReceivedEventArgs : EventArgs
+    public class MaanfeeMessageReceivedEventArgs : EventArgs
     {
         public string Message { get; set; }
 
@@ -10,6 +10,6 @@ namespace Maanfee.WebSocket
 
         public WS WebSocket { get; set; }
 
-        public WebSocketUser User { get; set; }
+        public MaanfeeWebSocketUser User { get; set; }
     }
 }

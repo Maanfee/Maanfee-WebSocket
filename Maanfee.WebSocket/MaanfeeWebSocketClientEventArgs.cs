@@ -2,10 +2,10 @@
 
 namespace Maanfee.WebSocket
 {
-    public class WebSocketClientEventArgs : EventArgs
+    public class MaanfeeWebSocketClientEventArgs : EventArgs
     {
         public WS WebSocket { get; set; }
 
-        public WebSocketUser User { get; set; }
+        public MaanfeeWebSocketUser User { get; set; }
     }
 }

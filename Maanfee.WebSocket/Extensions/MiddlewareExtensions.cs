@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.WebSockets;
 
@@ -6,12 +7,25 @@ namespace Maanfee.WebSocket
 {
     public static class MiddlewareExtensions
     {
-        public static IApplicationBuilder UseMaanfeeWebSocket(this IApplicationBuilder app, Action<WebSocketServer> configureEvents = null)
+        public static IApplicationBuilder UseMaanfeeWebSocket(this IApplicationBuilder app, Action<MaanfeeWebSocketServer> configureEvents = null)
         {
             // 🔥 WebSocket Middleware
             app.UseWebSockets(); // حتما این خط باید باشد
 
-            var webSocketServer = app.ApplicationServices.GetRequiredService<WebSocketServer>();
+            var webSocketServer = app.ApplicationServices.GetRequiredService<MaanfeeWebSocketServer>();
+
+            // Subscribe to state changes
+            webSocketServer.StateChanged += (sender, e) =>
+            {
+                Console.WriteLine($"[SERVER STATE] {e.OldState} -> {e.NewState} ({e.Reason})");
+
+                // Log to different levels based on severity
+                if (e.NewState == WebSocketServerState.Faulted)
+                {
+                    Console.WriteLine($"[ERROR] Server entered faulted state: {e.Reason}");
+                }
+            };
+
             webSocketServer.Start();
 
             // ثبت event handlers برای سرور
@@ -50,6 +64,14 @@ namespace Maanfee.WebSocket
                 {
                     if (context.WebSockets.IsWebSocketRequest)
                     {
+                        // Check server state
+                        if (!webSocketServer.State.CanAcceptConnections())
+                        {
+                            context.Response.StatusCode = 503; // Service Unavailable
+                            await context.Response.WriteAsync("WebSocket server is not ready");
+                            return;
+                        }
+
                         try
                         {
                             var webSocket = await context.WebSockets.AcceptWebSocketAsync();
@@ -77,6 +99,7 @@ namespace Maanfee.WebSocket
                 }
             });
 
+            configureEvents?.Invoke(webSocketServer);
             // استفاده از middleware
             return app;
         }

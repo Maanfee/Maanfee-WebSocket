@@ -7,12 +7,12 @@ namespace WebAPIServer.Controllers
     [Route("api/[controller]")]
     public class WebSocketController : ControllerBase
     {
-        public WebSocketController(WebSocketServer webSocketServer)
+        public WebSocketController(MaanfeeWebSocketServer webSocketServer)
         {
             _webSocketServer = webSocketServer;
         }
 
-        private readonly WebSocketServer _webSocketServer;
+        private readonly MaanfeeWebSocketServer _webSocketServer;
 
         [HttpGet("status")]
         public IActionResult GetStatus()

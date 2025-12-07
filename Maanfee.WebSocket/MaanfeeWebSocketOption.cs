@@ -1,6 +1,6 @@
 ﻿namespace Maanfee.WebSocket
 {
-    public class WebSocketOption
+    public class MaanfeeWebSocketOption
     {
         private string _host = "127.0.0.1";
         public string Host

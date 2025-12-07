@@ -7,7 +7,7 @@ namespace Maanfee.WebSocket
     {
         public static IServiceCollection AddMaanfeeWebSocket(this IServiceCollection services)
         {
-            services.TryAddSingleton<WebSocketServer>();
+            services.TryAddSingleton<MaanfeeWebSocketServer>();
 
             return services;
         }

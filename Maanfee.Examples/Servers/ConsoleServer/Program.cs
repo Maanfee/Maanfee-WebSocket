@@ -1,7 +1,7 @@
 ﻿using Maanfee.WebSocket;
 using System.Net;
 
-IWebSocketServer server = new WebSocketServer();
+IMaanfeeWebSocketServer server = new MaanfeeWebSocketServer();
 server.Start();
 
 // ثبت event handlers برای سرور

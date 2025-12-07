@@ -4,10 +4,10 @@ namespace WebAPIClient.Services
 {
     public class WebSocketClientService : BackgroundService
     {
-        private readonly WebSocketClient _webSocketClient;
+        private readonly MaanfeeWebSocketClient _webSocketClient;
         private readonly ILogger<WebSocketClientService> _logger;
 
-        public WebSocketClientService(WebSocketClient webSocketClient, ILogger<WebSocketClientService> logger)
+        public WebSocketClientService(MaanfeeWebSocketClient webSocketClient, ILogger<WebSocketClientService> logger)
         {
             _webSocketClient = webSocketClient;
             _logger = logger;

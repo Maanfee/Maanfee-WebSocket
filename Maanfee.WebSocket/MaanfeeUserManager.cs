@@ -2,9 +2,9 @@
 
 namespace Maanfee.WebSocket
 {
-    public partial class WebSocketServer
+    public partial class MaanfeeWebSocketServer
     {
-        private readonly List<WebSocketUser> Users = new List<WebSocketUser>();
+        protected readonly List<MaanfeeWebSocketUser> Users = new List<MaanfeeWebSocketUser>();
 
         public int GetConnectedUsersCount()
         {
@@ -22,7 +22,7 @@ namespace Maanfee.WebSocket
             }
         }
 
-        public WebSocketUser GetUserById(string userId)
+        public MaanfeeWebSocketUser GetUserById(string userId)
         {
             lock (_lock)
             {
@@ -30,7 +30,7 @@ namespace Maanfee.WebSocket
             }
         }
 
-        public List<WebSocketUser> GetAllUsers()
+        public List<MaanfeeWebSocketUser> GetAllUsers()
         {
             lock (_lock)
             {

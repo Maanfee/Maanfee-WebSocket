@@ -7,10 +7,10 @@ namespace WebAPIClient.Controllers
     [Route("api/[controller]")]
     public class WebSocketClientController : ControllerBase
     {
-        private readonly WebSocketClient _webSocketClient;
+        private readonly MaanfeeWebSocketClient _webSocketClient;
         private readonly ILogger<WebSocketClientController> _logger;
 
-        public WebSocketClientController(WebSocketClient webSocketClient, ILogger<WebSocketClientController> logger)
+        public WebSocketClientController(MaanfeeWebSocketClient webSocketClient, ILogger<WebSocketClientController> logger)
         {
             _webSocketClient = webSocketClient;
             _logger = logger;

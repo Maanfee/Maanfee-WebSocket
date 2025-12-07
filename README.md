@@ -14,10 +14,11 @@
 
 ### Maanfee.WebSocket
 A high-performance WebSocket library for .NET including:
-- `WebSocketServer` - Full-featured WebSocket server with user management
-- `WebSocketClient` - WebSocket client with auto-reconnection capability
-- `WebSocketOption` - Advanced configuration for connection settings
-- `WebSocketUser` - Management of connected user information
+- `MaanfeeWebSocketServer` - Full-featured WebSocket server with user management
+- `MaanfeeWebSocketClient` - WebSocket client with auto-reconnection capability
+- `MaanfeeWebSocketOption` - Advanced configuration for connection settings
+- `MaanfeeWebSocketUser` - Management of connected user information
+- `WebSocketServerState` & `WebSocketClientState` - Comprehensive state management
 - Event arguments and helper classes
 
 ### Maanfee.Examples
@@ -46,6 +47,7 @@ Example implementations demonstrating usage in different application types.
 | `ClientDisconnected` | When client disconnects |
 | `ServerStopped` |  When server stops |
 | `MessageReceived` | When message received from client |
+| `StateChanged` | When server state changes |
 
 ## WebSocketClient Methods
 
@@ -62,6 +64,7 @@ Example implementations demonstrating usage in different application types.
 | `ConnectionClosed` | When connection closes |
 | `ErrorOccurred` | When error occurs |
 | `Connected` | When connection established successfully |
+| `StateChanged` | When client state changes |
 
 # 🚀 Quick Start
 
