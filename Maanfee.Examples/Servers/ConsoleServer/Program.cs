@@ -5,22 +5,22 @@ IMaanfeeWebSocketServer server = new MaanfeeWebSocketServer();
 server.Start();
 
 // ثبت event handlers برای سرور
-server.ClientConnected += (sender, e) =>
+server.MaanfeeClientConnected += (sender, e) =>
 {
     Console.WriteLine($"[SERVER] ✅ Client connected: {e.User.Id} at {e.User.ConnectedTime:T}");
 };
 
-server.ClientDisconnected += (sender, e) =>
+server.MaanfeeClientDisconnected += (sender, e) =>
 {
     Console.WriteLine($"[SERVER] ❌ Client disconnected: {e.User.Id} at {e.User.DisconnectedTime:T}");
 };
 
-server.MessageReceived += (sender, e) =>
+server.MaanfeeMessageReceived += (sender, e) =>
 {
     Console.WriteLine($"[SERVER] 📩 Received from {e.User.Id}: {e.Message}");
 };
 
-server.ServerStopped += (sender, e) =>
+server.MaanfeeServerStopped += (sender, e) =>
 {
     Console.WriteLine("[SERVER] 🛑 Server stopped");
 };

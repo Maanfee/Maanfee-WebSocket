@@ -13,7 +13,11 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddSingleton<MaanfeeWebSocketClient>(provider =>
 {
     // آدرس سرور WebSocket اصلی
-    var client = new MaanfeeWebSocketClient(new MaanfeeWebSocketOption { Host = "127.0.0.1", Port = 5000 });
+    var client = new MaanfeeWebSocketClient(new MaanfeeWebSocketOption
+    {
+        Host = "127.0.0.1",
+        Port = 5000,
+    });
     return client;
 });
 

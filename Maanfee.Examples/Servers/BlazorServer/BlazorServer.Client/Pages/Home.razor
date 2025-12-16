@@ -247,18 +247,18 @@
 
 	private void SubscribeToEvents()
 	{
-		WebSocketServer.ClientConnected += OnClientConnected;
-		WebSocketServer.ClientDisconnected += OnClientDisconnected;
-		WebSocketServer.MessageReceived += OnMessageReceived;
-		WebSocketServer.ServerStopped += OnServerStopped;
+		WebSocketServer.MaanfeeClientConnected += OnClientConnected;
+		WebSocketServer.MaanfeeClientDisconnected += OnClientDisconnected;
+		WebSocketServer.MaanfeeMessageReceived += OnMessageReceived;
+		WebSocketServer.MaanfeeServerStopped += OnServerStopped;
 	}
 
 	private void UnsubscribeFromEvents()
 	{
-		WebSocketServer.ClientConnected -= OnClientConnected;
-		WebSocketServer.ClientDisconnected -= OnClientDisconnected;
-		WebSocketServer.MessageReceived -= OnMessageReceived;
-		WebSocketServer.ServerStopped -= OnServerStopped;
+		WebSocketServer.MaanfeeClientConnected -= OnClientConnected;
+		WebSocketServer.MaanfeeClientDisconnected -= OnClientDisconnected;
+		WebSocketServer.MaanfeeMessageReceived -= OnMessageReceived;
+		WebSocketServer.MaanfeeServerStopped -= OnServerStopped;
 	}
 
 	private async void OnClientConnected(object sender, MaanfeeWebSocketClientEventArgs e)

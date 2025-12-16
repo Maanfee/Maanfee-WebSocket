@@ -10,6 +10,18 @@
   </p>
 </div>
 
+## ✨ Features
+
+- ✅ **Full-duplex communication** - Real-time bidirectional messaging
+- ✅ **Automatic reconnection** - Configurable retry policies
+- ✅ **User management** - Track and manage connected users
+- ✅ **State management** - Comprehensive state tracking for client/server
+- ✅ **Cross-platform** - Works with ASP.NET Core, Blazor, Console apps
+- ✅ **Thread-safe** - Safe for concurrent operations
+- ✅ **Memory efficient** - Uses `ArrayPool` for buffer management
+- ✅ **Event-driven** - Comprehensive event system
+- ✅ **Dependency Injection** - Seamless integration with ASP.NET Core
+
 ## 📦 Packages
 
 ### Maanfee.WebSocket

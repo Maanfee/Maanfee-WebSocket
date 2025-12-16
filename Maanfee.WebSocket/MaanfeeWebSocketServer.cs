@@ -1,27 +1,23 @@
 ﻿using System.Net.WebSockets;
-using System.Text;
 using WS = System.Net.WebSockets.WebSocket;
 
 namespace Maanfee.WebSocket
 {
-    public partial class MaanfeeWebSocketServer : IMaanfeeWebSocketServer, IDisposable
+    public partial class MaanfeeWebSocketServer : MaanfeeWebSocketBase, IMaanfeeWebSocketServer, IDisposable
     {
-        public MaanfeeWebSocketServer(MaanfeeWebSocketOption options = null)
+        public MaanfeeWebSocketServer()
         {
-            _options = options ?? new MaanfeeWebSocketOption();
-            _cancellationTokenSource = new CancellationTokenSource();
+            CancellationTokenSource = new CancellationTokenSource();
             Console.WriteLine("WebSocket Server initialized");
         }
 
-        protected MaanfeeWebSocketOption _options;
         private readonly object _lock = new object();
-        private CancellationTokenSource _cancellationTokenSource;
 
         // Events
-        public event EventHandler<MaanfeeWebSocketClientEventArgs> ClientConnected;
-        public event EventHandler<MaanfeeWebSocketClientEventArgs> ClientDisconnected;
-        public event EventHandler ServerStopped;
-        public event EventHandler<MaanfeeMessageReceivedEventArgs> MessageReceived;
+        public event EventHandler<MaanfeeWebSocketClientEventArgs> MaanfeeClientConnected;
+        public event EventHandler<MaanfeeWebSocketClientEventArgs> MaanfeeClientDisconnected;
+        public event EventHandler MaanfeeServerStopped;
+        public event EventHandler<MaanfeeMessageReceivedEventArgs> MaanfeeMessageReceived;
 
         public virtual async Task HandleWebSocketConnectionAsync(WS webSocket)
         {
@@ -49,169 +45,13 @@ namespace Maanfee.WebSocket
             Console.WriteLine($"User connected: {userId}. Total users: {Users.Count}");
 
             // Trigger ClientConnected event
-            OnClientConnected(new MaanfeeWebSocketClientEventArgs
+            OnMaanfeeClientConnected(new MaanfeeWebSocketClientEventArgs
             {
                 WebSocket = webSocket,
                 User = user
             });
 
-            await HandleUserAsync(user);
-        }
-
-        protected virtual async Task HandleUserAsync(MaanfeeWebSocketUser user)
-        {
-            var buffer = new byte[_options.BufferSize];
-
-            try
-            {
-                while (user.IsConnected && !_cancellationTokenSource.Token.IsCancellationRequested)
-                {
-                    var result = await user.WebSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
-
-                    if (result.MessageType == WebSocketMessageType.Text)
-                    {
-                        var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        Console.WriteLine($"Received from user {user.Id}: {message}");
-
-                        // Trigger MessageReceived event
-                        OnMessageReceived(new MaanfeeMessageReceivedEventArgs
-                        {
-                            Message = message,
-                            ReceivedTime = DateTime.Now,
-                            WebSocket = user.WebSocket,
-                            User = user
-                        });
-
-                        // ارسال پیام به همه کاربران با مدیریت خطا
-                        _ = Task.Run(async () =>
-                        {
-                            try
-                            {
-                                await BroadcastMessage($"Broadcast: {message}");
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"Broadcast error: {ex.Message}");
-                            }
-                        });
-                    }
-                    else if (result.MessageType == WebSocketMessageType.Close)
-                    {
-                        // فقط اتصال را قطع کنید بدون فراخوانی CloseAsync مجدد
-                        break;
-                    }
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // Server is stopping - this is normal
-                Console.WriteLine($"Operation canceled for user {user.Id}");
-            }
-            catch (System.Net.WebSockets.WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
-            {
-                // User closed connection unexpectedly
-                Console.WriteLine($"User {user.Id} closed connection prematurely: {ex.Message}");
-            }
-            catch (MaanfeeWebSocketException ex)
-            {
-                Console.WriteLine($"WebSocket error for user {user.Id}: {ex.Message}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Unexpected error for user {user.Id}: {ex.Message}");
-            }
-            finally
-            {
-                await CleanupUser(user);
-            }
-        }
-
-        protected virtual async Task CleanupUser(MaanfeeWebSocketUser user)
-        {
-            try
-            {
-                user.MarkDisconnected();
-
-                lock (_lock)
-                {
-                    // ✅ بررسی وجود کاربر قبل از حذف
-                    if (Users.Contains(user))
-                    {
-                        Users.Remove(user);
-                    }
-                }
-
-                if (user.WebSocket.State == WebSocketState.Open || user.WebSocket.State == WebSocketState.CloseReceived || user.WebSocket.State == WebSocketState.CloseSent)
-                {
-                    try
-                    {
-                        await user.WebSocket.CloseAsync(WebSocketCloseStatus.NormalClosure,
-                            "Connection closed",
-                            CancellationToken.None);
-                    }
-                    catch (MaanfeeWebSocketException)
-                    {
-                        // Ignore close errors during cleanup
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        // Socket already disposed
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error during user cleanup {user.Id}: {ex.Message}");
-            }
-            finally
-            {
-                try
-                {
-                    user.WebSocket.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error disposing websocket for {user.Id}: {ex.Message}");
-                }
-
-                Console.WriteLine($"User disconnected: {user.Id}. Total users: {Users.Count}");
-                OnClientDisconnected(new MaanfeeWebSocketClientEventArgs
-                {
-                    WebSocket = user.WebSocket,
-                    User = user
-                });
-            }
-        }
-
-        protected virtual async Task BroadcastMessage(string message)
-        {
-            var bytes = Encoding.UTF8.GetBytes(message);
-            var tasks = new List<Task>();
-
-            lock (_lock)
-            {
-                foreach (var user in Users.Where(u => u.IsConnected))
-                {
-                    tasks.Add(user.WebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None));
-                }
-            }
-
-            await Task.WhenAll(tasks);
-        }
-
-        public virtual async Task SendToClientAsync(string clientId, string message)
-        {
-            var user = GetUserById(clientId);
-            if (user != null && user.IsConnected)
-            {
-                var bytes = Encoding.UTF8.GetBytes(message);
-                await user.WebSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationToken.None);
-            }
-        }
-
-        public virtual async Task SendToAllAsync(string message)
-        {
-            await BroadcastMessage(message);
+            await ReceiveMessageFromClientAsync(user);
         }
 
         public void Start()
@@ -223,7 +63,7 @@ namespace Maanfee.WebSocket
 
             try
             {
-                _cancellationTokenSource = new CancellationTokenSource();
+                CancellationTokenSource = new CancellationTokenSource();
                 SetState(WebSocketServerState.Running, "Server is now running and accepting connections");
                 Console.WriteLine("WebSocket Server started");
             }
@@ -243,7 +83,7 @@ namespace Maanfee.WebSocket
 
             try
             {
-                _cancellationTokenSource.Cancel();
+                CancellationTokenSource.Cancel();
 
                 // Close all user connections
                 var closeTasks = new List<Task>();
@@ -259,7 +99,7 @@ namespace Maanfee.WebSocket
 
                 SetState(WebSocketServerState.Stopped, "Server stopped successfully");
                 // Trigger ServerStopped event
-                OnServerStopped();
+                OnMaanfeeServerStopped();
 
                 Console.WriteLine("WebSocket Server stopped");
             }
@@ -268,57 +108,87 @@ namespace Maanfee.WebSocket
                 SetState(WebSocketServerState.Faulted, $"Error while stopping: {ex.Message}");
                 throw;
             }
+            finally
+            {
+                lock (_lock)
+                {
+                    Users.Clear();
+                }
+            }
         }
 
         // Event invokers
-        protected virtual void OnClientConnected(MaanfeeWebSocketClientEventArgs e)
+        protected virtual void OnMaanfeeClientConnected(MaanfeeWebSocketClientEventArgs e)
         {
-            ClientConnected?.Invoke(this, e);
+            MaanfeeClientConnected?.Invoke(this, e);
         }
 
-        protected virtual void OnClientDisconnected(MaanfeeWebSocketClientEventArgs e)
+        protected virtual void OnMaanfeeClientDisconnected(MaanfeeWebSocketClientEventArgs e)
         {
-            ClientDisconnected?.Invoke(this, e);
+            MaanfeeClientDisconnected?.Invoke(this, e);
         }
 
-        protected virtual void OnServerStopped()
+        protected virtual void OnMaanfeeServerStopped()
         {
-            ServerStopped?.Invoke(this, EventArgs.Empty);
+            MaanfeeServerStopped?.Invoke(this, EventArgs.Empty);
         }
 
-        protected virtual void OnMessageReceived(MaanfeeMessageReceivedEventArgs e)
+        protected virtual void OnMaanfeeMessageReceived(MaanfeeMessageReceivedEventArgs e)
         {
-            MessageReceived?.Invoke(this, e);
+            MaanfeeMessageReceived?.Invoke(this, e);
         }
 
-        public void Dispose()
+        protected override void Dispose(bool disposing)
         {
-            if (_state == WebSocketServerState.Running || _state == WebSocketServerState.Starting)
+            if (!_isDisposed)
             {
-                SetState(WebSocketServerState.Stopping, "Disposing server");
-                StopAsync().Wait(5000);
-            }
+                if (disposing)
+                {
+                    // Dispose managed resources
+                    if (_state == WebSocketServerState.Running || _state == WebSocketServerState.Starting)
+                    {
+                        SetState(WebSocketServerState.Stopping, "Disposing server");
 
-            _cancellationTokenSource?.Dispose();
-            SetState(WebSocketServerState.Stopped, "Server disposed");
+                        try
+                        {
+                            var stopTask = Task.Run(async () => await StopAsync().ConfigureAwait(false));
+                            if (!stopTask.Wait(TimeSpan.FromSeconds(5)))
+                            {
+                                Console.WriteLine("Warning: Server stop timed out during disposal");
+                                // Force cancellation
+                                CancellationTokenSource?.Cancel();
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error stopping server during disposal: {ex.Message}");
+                        }
+                    }
+
+                    CancellationTokenSource?.Dispose();
+                    SetState(WebSocketServerState.Stopped, "Server disposed");
+                }
+
+                // کلاس پایه هم Dispose کند
+                base.Dispose(disposing);
+            }
         }
 
         // State management
         private WebSocketServerState _state = WebSocketServerState.Stopped;
-        private readonly object _stateLock = new object();
 
         public WebSocketServerState State
         {
             get
             {
-                lock (_stateLock)
+                lock (StateLock)
                     return _state;
             }
         }
 
         private void SetState(WebSocketServerState newState, string reason = null)
         {
-            lock (_stateLock)
+            lock (StateLock)
             {
                 var oldState = _state;
                 _state = newState;

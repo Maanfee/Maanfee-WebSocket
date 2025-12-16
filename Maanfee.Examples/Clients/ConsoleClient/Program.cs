@@ -7,7 +7,11 @@ class Program
     static async Task Main(string[] args)
     {
         //client = new WebSocketClient("ws://localhost:5000/");
-        client = new MaanfeeWebSocketClient(new MaanfeeWebSocketOption { Host = "127.0.0.1", Port = 5000 });
+        client = new MaanfeeWebSocketClient(new MaanfeeWebSocketOption
+        {
+            Host = "127.0.0.1",
+            Port = 5000,
+        });
 
         // ثبت event handlers
         client.Connected += OnConnected;

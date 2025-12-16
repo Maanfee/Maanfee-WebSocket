@@ -29,10 +29,10 @@ namespace Maanfee.WebSocket
         // ************************************
 
         // Events
-        event EventHandler<MaanfeeWebSocketClientEventArgs> ClientConnected;
-        event EventHandler<MaanfeeWebSocketClientEventArgs> ClientDisconnected;
-        event EventHandler ServerStopped;
-        event EventHandler<MaanfeeMessageReceivedEventArgs> MessageReceived;
+        event EventHandler<MaanfeeWebSocketClientEventArgs> MaanfeeClientConnected;
+        event EventHandler<MaanfeeWebSocketClientEventArgs> MaanfeeClientDisconnected;
+        event EventHandler MaanfeeServerStopped;
+        event EventHandler<MaanfeeMessageReceivedEventArgs> MaanfeeMessageReceived;
 
         // State management
         WebSocketServerState State { get; }

@@ -18,14 +18,6 @@
                 throw new ArgumentOutOfRangeException(nameof(Port), "Port must be between 1 and 65535") : value;
         }
 
-        private int _bufferSize = 4096;
-        public int BufferSize
-        {
-            get => _bufferSize;
-            set => _bufferSize = value < 1024 ?
-                throw new ArgumentOutOfRangeException(nameof(BufferSize), "Buffer size must be at least 1024 bytes") : value;
-        }
-
         public bool AutoRetryConnection { get; set; } = false;
 
         public int RetryCount { get; set; } = 3;

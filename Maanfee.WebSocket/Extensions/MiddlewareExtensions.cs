@@ -26,27 +26,26 @@ namespace Maanfee.WebSocket
                 }
             };
 
-            webSocketServer.Start();
-
             // ثبت event handlers برای سرور
-            webSocketServer.ClientConnected += (sender, e) =>
+            webSocketServer.MaanfeeClientConnected += (sender, e) =>
             {
                 Console.WriteLine($"[SERVER] ✅ Client connected: {e.User.Id}");
             };
 
-            webSocketServer.ClientDisconnected += (sender, e) =>
+            webSocketServer.MaanfeeClientDisconnected += (sender, e) =>
             {
                 Console.WriteLine($"[SERVER] ❌ Client disconnected: {e.User.Id}");
             };
 
-            webSocketServer.MessageReceived += (sender, e) =>
+            webSocketServer.MaanfeeMessageReceived += (sender, e) =>
             {
                 Console.WriteLine($"[SERVER] 📩 Received from {e.User.Id}: {e.Message}");
             };
 
-            // ثبت event handlers سفارشی
-            // اگر مستقیم در سرور اجرا شود این خط را می توام حذف نمود
+            // event های سفارشی کاربر را اضافه کنید
             configureEvents?.Invoke(webSocketServer);
+
+            webSocketServer.Start();
             /*
             app.UseMaanfeeWebSocket(webSocketServer =>
             {
@@ -99,8 +98,6 @@ namespace Maanfee.WebSocket
                 }
             });
 
-            configureEvents?.Invoke(webSocketServer);
-            // استفاده از middleware
             return app;
         }
     }

@@ -1,26 +1,26 @@
-﻿using System.Net.WebSockets;
+﻿using System.Buffers;
+using System.Net.WebSockets;
 using System.Text;
 
 namespace Maanfee.WebSocket
 {
-    public class MaanfeeWebSocketClient : IMaanfeeWebSocketClient, IDisposable
+    public class MaanfeeWebSocketClient : MaanfeeWebSocketBase, IMaanfeeWebSocketClient, IDisposable
     {
         public MaanfeeWebSocketClient(MaanfeeWebSocketOption options = null)
         {
-            _options = options ?? new MaanfeeWebSocketOption();
-            _serverUrl = $"ws://{_options.Host}:{_options.Port}/ws";
-            _webSocket = new ClientWebSocket();
-            _cancellationTokenSource = new CancellationTokenSource();
+            Options = options ?? new MaanfeeWebSocketOption();
+            ServerUrl = $"ws://{Options.Host}:{Options.Port}/ws";
+            WebSocketClient = new ClientWebSocket();
+            CancellationTokenSource = new CancellationTokenSource();
 
             // Initialize state
             SetState(WebSocketClientState.Disconnected, "Initialized");
         }
 
-        private MaanfeeWebSocketOption _options;
-        private ClientWebSocket _webSocket;
-        private readonly string _serverUrl;
-        private CancellationTokenSource _cancellationTokenSource;
-        private bool _isDisposed = false;
+        private MaanfeeWebSocketOption Options;
+        private ClientWebSocket WebSocketClient;
+        private readonly string ServerUrl;
+        private Task _receivingTask;
 
         // Events
         public event EventHandler<string> MessageReceived;
@@ -28,7 +28,8 @@ namespace Maanfee.WebSocket
         public event EventHandler<Exception> ErrorOccurred;
         public event EventHandler Connected;
 
-        public bool IsConnected => _webSocket?.State == WebSocketState.Open;
+        public bool IsConnected => WebSocketClient?.State == WebSocketState.Open &&
+                   State == WebSocketClientState.Connected;
 
         public async Task ConnectAsync()
         {
@@ -40,9 +41,9 @@ namespace Maanfee.WebSocket
 
             SetState(WebSocketClientState.Connecting, "Starting connection process");
 
-            if (_options.AutoRetryConnection)
+            if (Options.AutoRetryConnection)
             {
-                for (int i = 0; i < _options.RetryCount; i++)
+                for (int i = 0; i < Options.RetryCount; i++)
                 {
                     try
                     {
@@ -51,15 +52,15 @@ namespace Maanfee.WebSocket
                     }
                     catch (MaanfeeWebSocketException ex)
                     {
-                        if (i == _options.RetryCount - 1)
+                        if (i == Options.RetryCount - 1)
                         {
-                            SetState(WebSocketClientState.Faulted, $"Connection failed after {_options.RetryCount} attempts: {ex.Message}");
+                            SetState(WebSocketClientState.Faulted, $"Connection failed after {Options.RetryCount} attempts: {ex.Message}");
                             OnErrorOccurred(ex);
                             throw;
                         }
 
-                        SetState(WebSocketClientState.Reconnecting, $"Retry {i + 1}/{_options.RetryCount} in {_options.RetryDelay.TotalSeconds}s");
-                        await Task.Delay(_options.RetryDelay);
+                        SetState(WebSocketClientState.Reconnecting, $"Retry {i + 1}/{Options.RetryCount} in {Options.RetryDelay.TotalSeconds}s");
+                        await Task.Delay(Options.RetryDelay);
                     }
                 }
             }
@@ -82,12 +83,25 @@ namespace Maanfee.WebSocket
         {
             try
             {
-                await _webSocket.ConnectAsync(new Uri(_serverUrl), CancellationToken.None);
+                await WebSocketClient.ConnectAsync(new Uri(ServerUrl), CancellationTokenSource.Token);
+
+                // بررسی وضعیت اتصال
+                if (WebSocketClient.State != WebSocketState.Open)
+                {
+                    throw new MaanfeeWebSocketException($"WebSocket connection failed. State: {WebSocketClient.State}");
+                }
+
                 SetState(WebSocketClientState.Connected, "Successfully connected to server");
                 OnConnected();
                 Console.WriteLine("Connected to server");
 
-                _ = Task.Run(StartReceiving);
+                _receivingTask = Task.Run(StartReceiving);
+            }
+            catch (Exception ex) when (ex is not MaanfeeWebSocketException)
+            {
+                var maanfeeEx = new MaanfeeWebSocketException($"Connection failed: {ex.Message}", innerException: ex);
+                OnErrorOccurred(maanfeeEx);
+                throw maanfeeEx;
             }
             catch (MaanfeeWebSocketException ex)
             {
@@ -107,71 +121,99 @@ namespace Maanfee.WebSocket
                 throw new MaanfeeWebSocketException($"Cannot send message. Current state: {State}");
 
             var bytes = Encoding.UTF8.GetBytes(message);
-            await _webSocket.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, _cancellationTokenSource.Token);
+            await WebSocketClient.SendAsync(new ArraySegment<byte>(bytes), WebSocketMessageType.Text, true, CancellationTokenSource.Token);
 
             Console.WriteLine($"Sent: {message}");
         }
 
         private async Task StartReceiving()
         {
-            var buffer = new byte[_options.BufferSize];
+            // استفاده از ArrayPool برای مدیریت بهتر حافظه 
+            // var buffer = new byte[DefaultBufferSize];
+            var buffer = ArrayPool<byte>.Shared.Rent(DefaultBufferSize);
 
-            while (!_cancellationTokenSource.Token.IsCancellationRequested && _webSocket.State == WebSocketState.Open)
+            try
             {
-                try
+                while (!CancellationTokenSource.Token.IsCancellationRequested)
                 {
-                    var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), _cancellationTokenSource.Token);
+                    try
+                    {
+                        var result = await WebSocketClient.ReceiveAsync(new ArraySegment<byte>(buffer), CancellationTokenSource.Token);
 
-                    if (result.MessageType == WebSocketMessageType.Text)
-                    {
-                        var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
-                        OnMessageReceived(message);
+                        if (result.MessageType == WebSocketMessageType.Text)
+                        {
+                            var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                            OnMessageReceived(message);
+                        }
+                        else if (result.MessageType == WebSocketMessageType.Close)
+                        {
+                            SetState(WebSocketClientState.Disconnected, "Server closed connection");
+                            OnConnectionClosed("Closed by server");
+                            break;
+                        }
                     }
-                    else if (result.MessageType == WebSocketMessageType.Close)
+                    catch (WebSocketException ex) when (ex.WebSocketErrorCode == WebSocketError.ConnectionClosedPrematurely)
                     {
-                        SetState(WebSocketClientState.Disconnected, "Server closed connection");
-                        OnConnectionClosed("Closed by server");
+                        SetState(WebSocketClientState.Disconnected, "Connection closed prematurely");
+                        OnConnectionClosed("Connection closed");
                         break;
                     }
                 }
-                catch (OperationCanceledException)
-                {
-                    SetState(WebSocketClientState.Disconnected, "Operation cancelled");
-                    break;
-                }
-                catch (MaanfeeWebSocketException ex)
-                {
-                    SetState(WebSocketClientState.Faulted, $"Error receiving: {ex.Message}");
-                    OnErrorOccurred(ex);
-                    break;
-                }
-                catch (Exception ex)
-                {
-                    SetState(WebSocketClientState.Faulted, $"Unexpected error: {ex.Message}");
-                    OnErrorOccurred(ex);
-                    break;
-                }
+            }
+            catch (OperationCanceledException)
+            {
+                SetState(WebSocketClientState.Disconnected, "Operation cancelled");
+            }
+            catch (MaanfeeWebSocketException ex)
+            {
+                SetState(WebSocketClientState.Faulted, $"Error receiving: {ex.Message}");
+                OnErrorOccurred(ex);
+            }
+            catch (Exception ex)
+            {
+                SetState(WebSocketClientState.Faulted, $"Unexpected error: {ex.Message}");
+                OnErrorOccurred(ex);
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
         public async Task DisconnectAsync()
         {
-            if (_isDisposed) return;
+            if (_isDisposed)
+                return;
 
             SetState(WebSocketClientState.Disconnecting, "Client initiated disconnect");
 
-            _cancellationTokenSource.Cancel();
+            CancellationTokenSource.Cancel();
 
-            if (_webSocket.State == WebSocketState.Open)
+            // 🔴 صبر کردن برای بسته شدن اتصال
+            if (_receivingTask != null)
             {
-                await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client disconnect", CancellationToken.None);
+                try
+                {
+                    await Task.WhenAny(
+                        _receivingTask,
+                        Task.Delay(TimeSpan.FromSeconds(5)));
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error during receive task completion: {ex.Message}");
+                }
+            }
+
+            if (WebSocketClient.State == WebSocketState.Open)
+            {
+                await WebSocketClient.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client disconnect", CancellationToken.None);
             }
 
             SetState(WebSocketClientState.Disconnected, "Successfully disconnected");
             OnConnectionClosed("Disconnected by client");
             Console.WriteLine("Disconnected from server");
         }
-        
+
         // Event invokers
         protected virtual void OnMessageReceived(string message)
         {
@@ -193,36 +235,58 @@ namespace Maanfee.WebSocket
             Connected?.Invoke(this, EventArgs.Empty);
         }
 
-        public void Dispose()
+        protected override void Dispose(bool disposing)
         {
             if (!_isDisposed)
             {
-                SetState(WebSocketClientState.Disconnecting, "Disposing client");
+                if (disposing)
+                {
+                    lock (StateLock)
+                    {
+                        if (_state != WebSocketClientState.Disposed)
+                        {
+                            SetState(WebSocketClientState.Disconnecting, "Disposing client");
 
-                _cancellationTokenSource?.Cancel();
-                _webSocket?.Dispose();
-                _cancellationTokenSource?.Dispose();
+                            try
+                            {
+                                CancellationTokenSource?.Cancel();
 
-                SetState(WebSocketClientState.Disposed, "Client disposed");
-                _isDisposed = true;
+                                // صبر برای تکمیل کارهای در حال انجام
+                                Task.Run(async () =>
+                                {
+                                    if (_receivingTask != null)
+                                    {
+                                        await Task.WhenAny(_receivingTask,
+                                            Task.Delay(TimeSpan.FromSeconds(2)));
+                                    }
+                                }).Wait(TimeSpan.FromSeconds(3));
+                            }
+                            finally
+                            {
+                                WebSocketClient?.Dispose();
+                                SetState(WebSocketClientState.Disposed, "Client disposed");
+                            }
+                        }
+                    }
+                }
+                base.Dispose(disposing);
             }
         }
 
         // State management
         private WebSocketClientState _state = WebSocketClientState.Disconnected;
-        private readonly object _stateLock = new object();
 
         public WebSocketClientState State
         {
             get
             {
-                lock (_stateLock) return _state;
+                lock (StateLock) return _state;
             }
         }
 
         private void SetState(WebSocketClientState newState, string reason = null)
         {
-            lock (_stateLock)
+            lock (StateLock)
             {
                 if (_state == WebSocketClientState.Disposed && newState != WebSocketClientState.Disposed)
                     return; // Cannot change from Disposed
@@ -245,6 +309,6 @@ namespace Maanfee.WebSocket
                 Reason = reason
             });
         }
-    
+
     }
 }
