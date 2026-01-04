@@ -11,8 +11,8 @@
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
 		<!--**********************************************-->
 		<GeneratePackageOnBuild>True</GeneratePackageOnBuild>
-		<Copyright>Copyright (c) 2025 Maanfee</Copyright>
-		<Authors>Maanfee Team (MF)</Authors>
+    <Copyright>Copyright (c) 2025-2026 Maanfee</Copyright>
+    <Authors>Maanfee Team (MF)</Authors>
 		<Company>Maanfee</Company>
 		<Version>1.6.0</Version>
 		<RepositoryType>git</RepositoryType>
@@ -32,9 +32,6 @@
 
 	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.WebSockets" Version="2.3.0" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
-		<PackageReference Include="Microsoft.AspNetCore.Http" Version="2.3.0" />
-		<PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" Version="2.3.0" />
 	</ItemGroup>
 
 	<ItemGroup>
