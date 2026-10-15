@@ -1,501 +1,139 @@
-﻿@page "/"
-@implements IAsyncDisposable
+@page "/"
+@using System.Net.Http.Json
 @implements IDisposable
+@inject HttpClient Http
 
-<PageTitle>WebSocket Server Manager</PageTitle>
+<PageTitle>Chat Server: Blazor</PageTitle>
 
-<MudPaper Elevation="25" Class="mt-6">
-	<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-6">
-		@* Server Status *@
-		<MudTabPanel Text="Server Status">
-			<MudGrid>
-				<MudItem md="12">
-					<MudCard>
-						<MudToolBar Dense>
-							<MudText Typo="Typo.h6" Color="Color.Primary">Server Status</MudText>
-						</MudToolBar>
-						<MudDivider DividerType="DividerType.FullWidth" />
-						<MudCardContent>
-							<MudGrid>
-								<MudItem md="4">
-									<MudText>
-										<strong>Status:</strong>
-										<MudChip T="string" Color="isRunning? Color.Success: Color.Error" Size="Size.Small">
-											@(isRunning ? "Running" : "Stopped")
-										</MudChip>
-									</MudText>
-								</MudItem>
-								<MudItem md="4">
-									<MudText>
-										<strong>Connected Users:</strong>
-										<MudChip T="int" Color="Color.Info" Size="Size.Small">
-											@ConnectedUsersCount
-										</MudChip>
-									</MudText>
-								</MudItem>
-								<MudItem md="4">
-									<RenderModeComponent />
-								</MudItem>
-								<MudItem md="12">
-									<MudStack Row="true">
-										@if (isRunning)
-										{
-											<MudButton Color="Color.Error" Variant="Variant.Filled" OnClick="StopServer"
-													   Disabled="@isStopping" StartIcon="@Icons.Material.Filled.Stop">
-												@(isStopping ? "Stopping..." : "Stop Server")
-											</MudButton>
-										}
-										else
-										{
-											<MudButton Color="Color.Success" Variant="Variant.Filled" OnClick="StartServer"
-													   StartIcon="@Icons.Material.Filled.PlayArrow">
-												Start Server
-											</MudButton>
-										}
-										<MudButton Color="Color.Warning" Variant="Variant.Filled" OnClick="RefreshStatus"
-												   StartIcon="@Icons.Material.Filled.Refresh">
-											Refresh
-										</MudButton>
-									</MudStack>
-								</MudItem>
-							</MudGrid>
-						</MudCardContent>
-					</MudCard>
-				</MudItem>
-			</MudGrid>
-		</MudTabPanel>
-		@* Users *@
-		<MudTabPanel Text="Users" BadgeData="@ConnectedUsersCount" BadgeColor="Color.Info">
-			<MudGrid>
-				<MudItem md="12">
-					<MudCard>
-						<MudToolBar Dense>
-							<MudText Typo="Typo.h6" Color="Color.Primary">Connected Users (@ConnectedUsersCount)</MudText>
-							<MudSpacer />
-							<MudIconButton Icon="@Icons.Material.Filled.Refresh" Color="Color.Secondary"
-										   Size="Size.Small" Variant="Variant.Outlined" Class="float-end"
-										   OnClick="RefreshStatus" />
-						</MudToolBar>
-						<MudDivider DividerType="DividerType.FullWidth" />
-						<MudCardContent Class="pa-0">
-							@if (ConnectedUsers.Any())
-							{
-								<MudTable Items="@ConnectedUsers" Hover="true" Striped="true" Class="mb-0">
-									<HeaderContent>
-										<MudTh>User ID</MudTh>
-										<MudTh>Connection Time</MudTh>
-										<MudTh>Duration</MudTh>
-										<MudTh>Status</MudTh>
-										<MudTh>Actions</MudTh>
-									</HeaderContent>
-									<RowTemplate>
-										<MudTd DataLabel="User ID">
-											<MudTooltip Text="@context.Id">
-												<MudText>@context.Id.Substring(0, 8)...</MudText>
-											</MudTooltip>
-										</MudTd>
-										<MudTd DataLabel="Connection Time">
-											<MudText>@context.ConnectedTime.ToString("HH:mm:ss")</MudText>
-										</MudTd>
-										<MudTd DataLabel="Duration">
-											<MudText>@GetConnectionDuration(context.ConnectedTime)</MudText>
-										</MudTd>
-										<MudTd DataLabel="Status">
-											<MudChip T="string" Color="Color.Success" Size="Size.Small">Connected</MudChip>
-										</MudTd>
-										<MudTd DataLabel="Actions">
-											<MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small"
-													   StartIcon="@Icons.Material.Filled.Send" OnClick="() => SendToUser(context.Id)">
-												Send
-											</MudButton>
-											<MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small"
-													   StartIcon="@Icons.Material.Filled.Info"
-													   OnClick="() => OpenDetailsDialog(context.Id)" Class="ml-2">
-												Details
-											</MudButton>
-										</MudTd>
-									</RowTemplate>
-								</MudTable>
-							}
-							else
-							{
-								<MudText Align="Align.Center" Class="pa-4">
-									<MudIcon Icon="Icons.Material.Filled.People" Size="Size.Large" Class="mb-2" />
-									<br />
-									No connected users
-								</MudText>
-							}
-						</MudCardContent>
-					</MudCard>
-				</MudItem>
-			</MudGrid>
-		</MudTabPanel>
-		@* Quick Actions *@
-		<MudTabPanel Text="Quick Actions">
-			<MudItem md="12">
-				<MudCard>
-					<MudToolBar Dense>
-						<MudText Typo="Typo.h6" Color="Color.Primary">Quick Actions</MudText>
-					</MudToolBar>
-					<MudDivider DividerType="DividerType.FullWidth" />
-					<MudCardContent>
-						<MudGrid>
-							<!-- Broadcast Test Message Button -->
-							<MudItem xs="12" Class="mb-2">
-								<MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="BroadcastToAll"
-										   StartIcon="@Icons.Material.Filled.BroadcastOnPersonal"
-										   Disabled="@(!isRunning || ConnectedUsersCount == 0)" FullWidth="true">
-									Broadcast Test Message
-								</MudButton>
-							</MudItem>
-							<!-- Custom Broadcast Input -->
-							<MudItem xs="12">
-								<MudGrid>
-									<MudItem xs="10">
-										<MudTextField @bind-Value="broadcastMessage" Variant="Variant.Outlined"
-													  Placeholder="Enter message to broadcast" Immediate="true" />
-									</MudItem>
-									<MudItem xs="2">
-										<MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Send"
-												   OnClick="SendCustomBroadcast" FullWidth="true"
-												   Disabled="@(!isRunning || string.IsNullOrWhiteSpace(broadcastMessage))">
-											Send
-										</MudButton>
-									</MudItem>
-								</MudGrid>
-							</MudItem>
-						</MudGrid>
-					</MudCardContent>
-				</MudCard>
-			</MudItem>
-		</MudTabPanel>
-		@* Server Logs *@
-		<MudTabPanel Text="Server Logs">
-			<MudGrid>
-				<MudItem xs="12">
-					<MudCard>
-						<MudToolBar Dense>
-							<MudText Typo="Typo.h6" Color="Color.Primary">Server Logs (@ServerLogs.Count)</MudText>
-							<MudSpacer />
-							<MudButton Variant="Variant.Filled" Color="Color.Error" Size="Size.Small"
-									   EndIcon="@Icons.Material.Filled.Delete" OnClick="ClearLogs">
-								Clear
-							</MudButton>
-						</MudToolBar>
-						<MudDivider DividerType="DividerType.FullWidth" />
-						<MudCardContent Class="pa-0">
-							<MudPaper Class="console-log" Elevation="0">
-								@if (ServerLogs.Any())
-								{
-									@foreach (var log in ServerLogs)
-									{
-										<MudText>@log</MudText>
-									}
-								}
-								else
-								{
-									<MudText Align="Align.Center" Color="Color.Default" Class="text-muted">
-										No logs yet
-									</MudText>
-								}
-							</MudPaper>
-						</MudCardContent>
-					</MudCard>
-				</MudItem>
-			</MudGrid>
-		</MudTabPanel>
-	</MudTabs>
-</MudPaper>
+<MudContainer MaxWidth="MaxWidth.Medium" Class="mt-6">
+
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        <MudStack Row="true" Spacing="3" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+            <MudChip T="string" @key="_state" Color="@(_online ? Color.Success : Color.Error)" Variant="Variant.Filled" Size="Size.Large">
+                @(_online ? _state : "Unreachable")
+            </MudChip>
+            <MudText>Connected clients: <b>@_clients.Count</b></MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Clients connect to ws://@(_host)/ws</MudText>
+        </MudStack>
+
+        @if (_clients.Count > 0)
+        {
+            <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap" Class="mt-3">
+                @foreach (var client in _clients)
+                {
+                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Link">
+                        @client.Id[..8] <span class="ml-1 mud-text-secondary">(@client.ConnectedAt.ToLocalTime().ToString("HH:mm:ss"))</span>
+                    </MudChip>
+                }
+            </MudStack>
+        }
+    </MudPaper>
+
+    <MudPaper Class="pa-4 mb-4" Elevation="2">
+        @* column-reverse keeps the scroll position pinned to the bottom, the list inside stays oldest first *@
+        <div style="height: 250px; overflow-y: auto; display: flex; flex-direction: column-reverse;">
+            <div>
+                @if (_log.Count == 0)
+                {
+                    <MudText Color="Color.Secondary">No messages yet. Start a client and say hello.</MudText>
+                }
+                @foreach (var line in _log)
+                {
+                    <MudText Color="@(line.StartsWith("Server:") ? Color.Primary : Color.Default)" Class="mb-1">@line</MudText>
+                }
+            </div>
+        </div>
+    </MudPaper>
+
+    <MudPaper Class="pa-4" Elevation="2">
+        <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="_input" Label="Message to all clients" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Immediate="true" Class="flex-grow-1" OnKeyDown="OnKeyDown" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SendAsync"
+                       Disabled="@(string.IsNullOrWhiteSpace(_input) || !_online)"
+                       EndIcon="@Icons.Material.Filled.Send">Send</MudButton>
+        </MudStack>
+        <MudText Typo="Typo.caption" Class="mt-2 mud-text-secondary">
+            Sent to every client as "Server: Blazor: ...". Messages typed by clients are relayed to the other clients.
+        </MudText>
+    </MudPaper>
+
+</MudContainer>
 
 @code {
+    private sealed record ClientInfo(string Id, DateTime ConnectedAt);
+    private sealed record StatusDto(string State, List<ClientInfo> Clients);
 
-	private bool isRunning = true;
-	private bool isStopping = false;
-	private int ConnectedUsersCount = 0;
-	private List<MaanfeeWebSocketUser> ConnectedUsers = new();
-	private List<string> ServerLogs = new();
-	private string broadcastMessage = "Message from Server ...";
-	private bool IsServer => !OperatingSystem.IsBrowser();
+    private readonly CancellationTokenSource _cts = new();
+    private List<ClientInfo> _clients = new();
+    private List<string> _log = new();   // oldest first; the column-reverse container keeps the view pinned to the bottom
+    private string _state = "Unknown";
+    private string _host = "";
+    private string _input = string.Empty;
+    private bool _online;
 
-	protected override async Task OnInitializedAsync()
-	{
-		await RefreshStatus();
-		SubscribeToEvents();
+    protected override async Task OnInitializedAsync()
+    {
+        _host = Http.BaseAddress!.Authority;
+        await RefreshAsync();
+        _ = PollAsync();
+    }
 
-		await AddLogAsync("WebSocket Manager initialized");
-	}
+    private async Task PollAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(_cts.Token))
+            {
+                await RefreshAsync();
+                StateHasChanged();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // page left
+        }
+    }
 
-	private async Task RefreshStatus()
-	{
-		if (!IsServer)
-			return;
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            var status = await Http.GetFromJsonAsync<StatusDto>("api/chat/status", _cts.Token);
+            var messages = await Http.GetFromJsonAsync<List<string>>("api/chat/messages", _cts.Token);
 
-		try
-		{
-			await InvokeAsync(() =>
-			{
-				ConnectedUsersCount = WebSocketServer.GetConnectedUsersCount();
-				ConnectedUsers = WebSocketServer.GetAllUsers();
-				StateHasChanged();
-			});
-		}
-		catch (Exception ex)
-		{
-			await AddLogAsync($"❌ Error refreshing status: {ex.Message}");
-		}
-	}
+            _state = status?.State ?? "Unknown";
+            _clients = status?.Clients ?? new();
+            _log = messages ?? new();
+            _online = true;
+        }
+        catch (Exception) when (!_cts.IsCancellationRequested)
+        {
+            _online = false;
+        }
+    }
 
-	private void SubscribeToEvents()
-	{
-		WebSocketServer.MaanfeeClientConnected += OnClientConnected;
-		WebSocketServer.MaanfeeClientDisconnected += OnClientDisconnected;
-		WebSocketServer.MaanfeeMessageReceived += OnMessageReceived;
-		WebSocketServer.MaanfeeServerStopped += OnServerStopped;
-	}
+    private async Task SendAsync()
+    {
+        var text = _input.Trim();
+        if (text.Length == 0)
+            return;
 
-	private void UnsubscribeFromEvents()
-	{
-		WebSocketServer.MaanfeeClientConnected -= OnClientConnected;
-		WebSocketServer.MaanfeeClientDisconnected -= OnClientDisconnected;
-		WebSocketServer.MaanfeeMessageReceived -= OnMessageReceived;
-		WebSocketServer.MaanfeeServerStopped -= OnServerStopped;
-	}
+        _input = string.Empty;
+        await Http.PostAsJsonAsync("api/chat/send", new { message = text }, _cts.Token);
+        await RefreshAsync();
+    }
 
-	private async void OnClientConnected(object sender, MaanfeeWebSocketClientEventArgs e)
-	{
-		await InvokeAsync(async () =>
-				{
-					await AddLogAsync($"✅ Client connected: {e.User.Id}");
-					await RefreshStatus();
-				});
-	}
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await SendAsync();
+    }
 
-	private async void OnClientDisconnected(object sender, MaanfeeWebSocketClientEventArgs e)
-	{
-		await InvokeAsync(async () =>
-				{
-					await AddLogAsync($"❌ Client disconnected: {e.User.Id}");
-					await RefreshStatus();
-				});
-	}
-
-	private async void OnMessageReceived(object sender, MaanfeeMessageReceivedEventArgs e)
-	{
-		await InvokeAsync(async () =>
-		{
-			await AddLogAsync($"📨 Message from {e.User.Id.Substring(0, 8)}...: {e.Message}");
-		});
-	}
-
-	private async void OnServerStopped(object sender, EventArgs e)
-	{
-		await InvokeAsync(async () =>
-		{
-			isRunning = false;
-			isStopping = false;
-			await AddLogAsync("🛑 Server stopped");
-			await RefreshStatus();
-		});
-	}
-
-	private void StartServer()
-	{
-		WebSocketServer.Start();
-		isRunning = true;
-		_ = AddLogAsync("🚀 Server started");
-	}
-
-	private async Task StopServer()
-	{
-		isStopping = true;
-		await InvokeAsync(StateHasChanged); // Update UI immediately
-
-		try
-		{
-			await WebSocketServer.StopAsync();
-			await AddLogAsync("🛑 Server stop requested");
-		}
-		catch (Exception ex)
-		{
-			await AddLogAsync($"❌ Error stopping server: {ex.Message}");
-			isStopping = false;
-			await InvokeAsync(StateHasChanged);
-		}
-	}
-
-	private async Task BroadcastToAll()
-	{
-		try
-		{
-			var message = $"🚀 Test broadcast from server - {DateTime.Now:HH:mm:ss}";
-			await WebSocketServer.SendToAllAsync(message);
-			await AddLogAsync($"📢 Broadcast sent to {ConnectedUsersCount} users: {message}");
-		}
-		catch (Exception ex)
-		{
-			await AddLogAsync($"❌ Error broadcasting: {ex.Message}");
-		}
-	}
-
-	private async Task SendCustomBroadcast()
-	{
-		if (!string.IsNullOrWhiteSpace(broadcastMessage))
-		{
-			try
-			{
-				await WebSocketServer.SendToAllAsync(broadcastMessage);
-				await AddLogAsync($"📢 Broadcast to {ConnectedUsersCount} users: {broadcastMessage}");
-				broadcastMessage = string.Empty;
-			}
-			catch (Exception ex)
-			{
-				await AddLogAsync($"❌ Error broadcasting: {ex.Message}");
-			}
-		}
-	}
-
-	private async Task SendToUser(string userId)
-	{
-		var message = $"👋 Hello from server manager! Time: {DateTime.Now:HH:mm:ss}";
-		try
-		{
-			await WebSocketServer.SendToClientAsync(userId, message);
-			await AddLogAsync($"📤 Message sent to user {userId.Substring(0, 8)}...");
-		}
-		catch (Exception ex)
-		{
-			await AddLogAsync($"❌ Error sending to user {userId.Substring(0, 8)}...: {ex.Message}");
-		}
-	}
-
-	private string GetConnectionDuration(DateTime connectedTime)
-	{
-		var duration = DateTime.Now - connectedTime;
-		return $"{(int)duration.TotalMinutes}m {duration.Seconds}s";
-	}
-
-	// *************************************************
-
-	private async Task AddLogAsync(string message)
-	{
-		var timestamp = DateTime.Now.ToString("HH:mm:ss");
-
-		await InvokeAsync(() =>
-		{
-			ServerLogs.Insert(0, $"[{timestamp}] {message}");
-
-			// Keep only last 50 logs
-			if (ServerLogs.Count > 50)
-			{
-				ServerLogs = ServerLogs.Take(50).ToList();
-			}
-
-			StateHasChanged();
-		});
-	}
-
-	private void ClearLogs()
-	{
-		ServerLogs.Clear();
-		StateHasChanged();
-	}
-
-	#region - Details -
-
-	private async Task OpenDetailsDialog<T>(T userId)
-	{
-		var selectedUser = WebSocketServer.GetUserById(userId?.ToString());
-
-		DialogParameters DialogParameters = new DialogParameters();
-		DialogParameters.Add("SelectedUser", selectedUser);
-
-		var dialog = await Dialog.ShowAsync<DialogDetails>(string.Empty, DialogParameters,
-			new DialogOptions()
-			{
-				NoHeader = true,
-				MaxWidth = MaxWidth.Medium,
-				FullWidth = true,
-				Position = DialogPosition.Center,
-				BackgroundClass = "Dialog-Blur",
-				CloseOnEscapeKey = true,
-			});
-
-		var result = await dialog.Result;
-
-		if (!result.Canceled)
-		{
-			if (result.Data != null)
-			{
-				try
-				{
-					await WebSocketServer.SendToClientAsync(selectedUser?.Id, (string)result.Data);
-					await AddLogAsync($"📤 Message sent to user {selectedUser?.Id.Substring(0, 8)}...");
-				}
-				catch (Exception ex)
-				{
-					await AddLogAsync($"❌ Error sending to user {selectedUser?.Id.Substring(0, 8)}...: {ex.Message}");
-				}
-				selectedUser = null;
-				StateHasChanged();
-			}
-		}
-	}
-
-	#endregion
-
-	// *************************************************
-
-	public async ValueTask DisposeAsync()
-	{
-		UnsubscribeFromEvents();
-	}
-
-	public void Dispose()
-	{
-		UnsubscribeFromEvents();
-	}
-
+    public void Dispose()
+    {
+        _cts.Cancel();
+        _cts.Dispose();
+    }
 }
-
-<style>
-
-	.console-log {
-		height: 300px;
-		overflow-y: auto;
-		background-color: #1e1e1e;
-		color: #d4d4d4;
-		padding: 10px;
-		font-family: 'Courier New', monospace;
-		font-size: 0.9rem;
-		line-height: 1.4;
-	}
-
-		.console-log div {
-			border-bottom: 1px solid #333;
-			padding: 2px 0;
-			word-break: break-all;
-		}
-
-			.console-log div:last-child {
-				border-bottom: none;
-			}
-
-		/* Custom scrollbar for console */
-		.console-log::-webkit-scrollbar {
-			width: 8px;
-		}
-
-		.console-log::-webkit-scrollbar-track {
-			background: #2d2d2d;
-		}
-
-		.console-log::-webkit-scrollbar-thumb {
-			background: #555;
-			border-radius: 4px;
-		}
-
-			.console-log::-webkit-scrollbar-thumb:hover {
-				background: #777;
-			}
-
-</style>

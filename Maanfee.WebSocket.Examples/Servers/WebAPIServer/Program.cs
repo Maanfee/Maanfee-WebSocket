@@ -1,44 +1,43 @@
-﻿using Maanfee.WebSocket;
-using System.Net.WebSockets;
+using Maanfee.WebSocket;
+using WebAPIServer;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Add services to the container.
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// The WebSocket server, its connection manager, the message sender and a hosted service
+// that starts the server with the host and stops it gracefully on shutdown.
+builder.Services.AddMaanfeeWebSocket(options => options.Path = "/ws");
 
-// ********************************
-builder.Services.AddMaanfeeWebSocket();
-
-// اضافه کردن CORS برای اجازه دسترسی به API کلاینت
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
-// ********************************
+// The chat behaviour of this example (relay between clients, server messages).
+builder.Services.AddSingleton<ChatRelay>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatRelay>());
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Clients connect to ws://localhost:5000/ws
+app.UseWebSocketServer();
+
+var chat = app.MapGroup("/api/chat");
+
+// POST /api/chat/send   body: { "message": "hello" }  -> every client receives "Server: WebAPI: hello"
+chat.MapPost("/send", async (SendRequest request, ChatRelay relay) =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    if (string.IsNullOrWhiteSpace(request.Message))
+        return Results.BadRequest(new { error = "message is required" });
 
-app.UseAuthorization();
-app.MapControllers();
+    var recipients = relay.ConnectedCount;
+    await relay.SendToAllAsync(request.Message);
+    return Results.Ok(new { status = "sent", recipients });
+});
 
-// ********************************
-// 🔥 WebSocket Middleware
-app.UseMaanfeeWebSocket();
-// ********************************
+// The chat log kept by the server (client lines and server lines).
+chat.MapGet("/messages", (ChatRelay relay) => relay.Log);
+
+chat.MapGet("/status", (ChatRelay relay, MaanfeeWebSocketServer server) => new
+{
+    state = server.State.ToString(),
+    connectedClients = relay.ConnectedCount,
+});
 
 app.Run();
+
+public record SendRequest(string Message);

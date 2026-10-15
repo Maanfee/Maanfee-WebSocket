@@ -1,10 +1,16 @@
-﻿namespace Maanfee.WebSocket
-{
-    public abstract class MaanfeeWebSocketBase : IDisposable
-    {
-        protected const long MaxMessageSize = 10 * 1024 * 1024;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
-        protected const int DefaultBufferSize = 4096;
+namespace Maanfee.WebSocket
+{
+    public abstract class MaanfeeWebSocketBase : IDisposable, IAsyncDisposable
+    {
+        protected ILogger Logger { get; }
+
+        protected MaanfeeWebSocketBase(ILogger logger = null)
+        {
+            Logger = logger ?? NullLogger.Instance;
+        }
 
         //private int _bufferSize = 4096;
         //public int BufferSize
@@ -37,6 +43,20 @@
             }
         }
 
+        /// <summary>Asynchronous cleanup (graceful stop/disconnect). Runs before the synchronous release in <see cref="Dispose(bool)"/>.</summary>
+        protected virtual ValueTask DisposeAsyncCore() => ValueTask.CompletedTask;
+
+        public async ValueTask DisposeAsync()
+        {
+            if (_isDisposed)
+                return;
+
+            await DisposeAsyncCore().ConfigureAwait(false);
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        /// <summary>Releases synchronous resources only; it never waits. Use <see cref="DisposeAsync"/> for a graceful shutdown.</summary>
         public void Dispose()
         {
             Dispose(true);

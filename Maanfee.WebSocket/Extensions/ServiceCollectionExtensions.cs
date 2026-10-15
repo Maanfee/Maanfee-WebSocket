@@ -5,17 +5,23 @@ namespace Maanfee.WebSocket
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddMaanfeeWebSocket(this IServiceCollection services)
+        public static IServiceCollection AddMaanfeeWebSocket(this IServiceCollection services, Action<MaanfeeWebSocketServerOptions> configureOptions = null)
         {
+            var options = new MaanfeeWebSocketServerOptions();
+            configureOptions?.Invoke(options);
+            services.TryAddSingleton(options);
+            services.TryAddSingleton<IWebSocketConnectionManager, WebSocketConnectionManager>();
+            services.TryAddSingleton<IWebSocketMessageSender, WebSocketMessageSender>();
             services.TryAddSingleton<MaanfeeWebSocketServer>();
+            services.AddHostedService<WebSocketServerHostedService>();
 
             return services;
         }
 
         //public static IServiceCollection AddMaanfeeWebSocket(this IServiceCollection services,
-        //    Action<MaanfeeWebSocketOption> configureOptions)
+        //    Action<MaanfeeWebSocketServerOptions> configureOptions)
         //{
-        //    var options = new MaanfeeWebSocketOption();
+        //    var options = new MaanfeeWebSocketServerOptions();
         //    configureOptions?.Invoke(options);
 
         //    services.TryAddSingleton<MaanfeeWebSocketServer>(sp =>

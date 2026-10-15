@@ -1,79 +1,87 @@
-﻿using Maanfee.WebSocket;
+using Maanfee.WebSocket;
 using System.Net;
 
-IMaanfeeWebSocketServer server = new MaanfeeWebSocketServer();
+// Console chat server.
+//  - A line typed by a client is shown here as "Client: <name>: <text>" and relayed to every OTHER client.
+//  - A line typed here is sent to ALL clients as "Server: Console: <text>".
+// Relaying is application logic, so it lives in this example and not in the library.
+
+var options = new MaanfeeWebSocketServerOptions { Path = "/ws" };
+var connections = new WebSocketConnectionManager();
+var sender = new WebSocketMessageSender(connections);
+await using var server = new MaanfeeWebSocketServer(options, connections);
 server.Start();
 
-// ثبت event handlers برای سرور
-server.MaanfeeClientConnected += (sender, e) =>
+async Task SendToAllExceptAsync(string text, string exceptConnectionId = null)
 {
-    Console.WriteLine($"[SERVER] ✅ Client connected: {e.User.Id} at {e.User.ConnectedTime:T}");
+    var targets = connections.GetAll().Where(c => c.Id != exceptConnectionId);
+    await Task.WhenAll(targets.Select(c => sender.SendAsync(c.Id, text)));
+}
+
+server.MaanfeeClientConnected += (_, e) => Console.WriteLine($"[+] Client joined ({connections.Count} connected)");
+server.MaanfeeClientDisconnected += (_, e) => Console.WriteLine($"[-] Client left ({connections.Count} connected)");
+
+server.MaanfeeMessageReceived += async (_, message) =>
+{
+    if (message.PayloadType != WebSocketPayloadType.Text)
+        return;
+
+    var line = $"Client: {message.AsText()}";   // the client already prefixed its own name
+    Console.WriteLine(line);
+    await SendToAllExceptAsync(line, message.ConnectionId);
 };
 
-server.MaanfeeClientDisconnected += (sender, e) =>
-{
-    Console.WriteLine($"[SERVER] ❌ Client disconnected: {e.User.Id} at {e.User.DisconnectedTime:T}");
-};
+var stopping = false;
+var listener = new HttpListener();
+listener.Prefixes.Add($"http://localhost:5000{options.Path}/");
+listener.Prefixes.Add($"http://127.0.0.1:5000{options.Path}/");
+listener.Start();
 
-server.MaanfeeMessageReceived += (sender, e) =>
-{
-    Console.WriteLine($"[SERVER] 📩 Received from {e.User.Id}: {e.Message}");
-};
-
-server.MaanfeeServerStopped += (sender, e) =>
-{
-    Console.WriteLine("[SERVER] 🛑 Server stopped");
-};
-
-// راه‌اندازی HTTP Listener برای WebSocket
-var httpListener = new HttpListener();
-httpListener.Prefixes.Add("http://localhost:5000/ws/"); // اضافه کردن /ws/
-httpListener.Prefixes.Add("http://127.0.0.1:5000/ws/"); // برای اتصال از localhost و 127.0.0.1
-httpListener.Start();
-
-Console.WriteLine("🚀 WebSocket Server started on http://localhost:5000/");
-Console.WriteLine("Press 'q' to stop server...");
-
-// پردازش درخواست‌های WebSocket - این قسمت اصلاح شده
 _ = Task.Run(async () =>
 {
-    while (true)
+    while (!stopping)
     {
         try
         {
-            var context = await httpListener.GetContextAsync();
+            var context = await listener.GetContextAsync();
 
-            if (context.Request.IsWebSocketRequest)
-            {
-                var webSocketContext = await context.AcceptWebSocketAsync(null);
-
-                // هر اتصال جدید در یک Task جداگانه اجرا شود
-                _ = Task.Run(async () =>
-                {
-                    await server.HandleWebSocketConnectionAsync(webSocketContext.WebSocket);
-                });
-            }
-            else
+            if (!context.Request.IsWebSocketRequest)
             {
                 context.Response.StatusCode = 400;
                 context.Response.Close();
-                Console.WriteLine($"[SERVER] Rejected non-WebSocket request from {context.Request.RemoteEndPoint}");
+                continue;
             }
+
+            var webSocketContext = await context.AcceptWebSocketAsync(null);
+            _ = Task.Run(() => server.HandleWebSocketConnectionAsync(webSocketContext.WebSocket));
+        }
+        catch when (stopping)
+        {
+            // listener closed
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[SERVER] Error: {ex.Message}");
+            Console.WriteLine($"[!] {ex.Message}");
         }
     }
 });
 
-// منتظر فشار دادن کلید 'q' برای توقف سرور
-while (Console.ReadKey().Key != ConsoleKey.Q)
+Console.WriteLine($"Server: Console is listening on ws://localhost:5000{options.Path}");
+Console.WriteLine("Type a message to send it to all clients, or 'exit' to stop.");
+
+string input;
+while ((input = Console.ReadLine()) != null && !input.Trim().Equals("exit", StringComparison.OrdinalIgnoreCase))
 {
-    Console.WriteLine("\nPress 'q' to stop server...");
+    if (string.IsNullOrWhiteSpace(input))
+        continue;
+
+    var line = $"Server: Console: {input}";
+    Console.WriteLine(line);
+    await SendToAllExceptAsync(line);
 }
 
+stopping = true;
 await server.StopAsync();
-httpListener.Stop();
-httpListener.Close();
-Console.WriteLine("👋 Server shutdown completed");
+listener.Stop();
+listener.Close();
+Console.WriteLine("Server: Console stopped.");

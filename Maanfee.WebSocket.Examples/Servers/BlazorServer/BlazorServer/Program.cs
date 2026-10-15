@@ -1,54 +1,51 @@
-﻿using BlazorServer.Components;
+using BlazorServer;
 using Maanfee.WebSocket;
-using MudBlazor.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents()
-    .AddInteractiveWebAssemblyComponents();
+// The WebSocket server, its connection manager, the message sender and a hosted service
+// that starts the server with the host and stops it gracefully on shutdown.
+builder.Services.AddMaanfeeWebSocket(options => options.Path = "/ws");
 
-builder.Services.AddMudServices();
-
-// ********************************
-builder.Services.AddMaanfeeWebSocket();
-
-// اضافه کردن CORS برای اجازه دسترسی به API کلاینت
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll", policy =>
-    {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
-    });
-});
-// ********************************
+// The chat behaviour of this example (relay between clients, server messages).
+builder.Services.AddSingleton<ChatRelay>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<ChatRelay>());
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Clients connect to ws://localhost:5000/ws
+app.UseWebSocketServer();
+
+// The Blazor WebAssembly dashboard (BlazorServer.Client) is served by this host.
 if (app.Environment.IsDevelopment())
-{
     app.UseWebAssemblyDebugging();
-}
-else
+
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+
+// What the dashboard calls.
+var chat = app.MapGroup("/api/chat");
+
+chat.MapPost("/send", async (SendRequest request, ChatRelay relay) =>
 {
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-}
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-app.UseAntiforgery();
+    if (string.IsNullOrWhiteSpace(request.Message))
+        return Results.BadRequest(new { error = "message is required" });
 
-// ********************************
-// 🔥 WebSocket Middleware
-app.UseMaanfeeWebSocket();
-// ********************************
+    var recipients = relay.ConnectedCount;
+    await relay.SendToAllAsync(request.Message);
+    return Results.Ok(new { status = "sent", recipients });
+});
 
-app.MapStaticAssets();
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode()
-    .AddInteractiveWebAssemblyRenderMode()
-    .AddAdditionalAssemblies(typeof(BlazorServer.Client._Imports).Assembly);
+chat.MapGet("/messages", (ChatRelay relay) => relay.Log);
+
+chat.MapGet("/status", (ChatRelay relay, MaanfeeWebSocketServer server, IWebSocketConnectionManager connections) => new
+{
+    state = server.State.ToString(),
+    clients = connections.GetAll().Where(c => c.IsConnected).Select(c => new { id = c.Id, connectedAt = c.ConnectedAt }),
+});
+
+app.MapFallbackToFile("index.html");
 
 app.Run();
+
+public record SendRequest(string Message);

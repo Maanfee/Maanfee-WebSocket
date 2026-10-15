@@ -4,7 +4,7 @@
     {
         public object OldState { get; set; }
         public object NewState { get; set; }
-        public DateTime ChangeTime { get; set; } = DateTime.Now;
+        public DateTime ChangeTime { get; set; } = DateTime.UtcNow;
         public string Reason { get; set; }
     }
 
@@ -13,7 +13,7 @@
     {
         public T OldState { get; set; }
         public T NewState { get; set; }
-        public DateTime ChangeTime { get; set; } = DateTime.Now;
+        public DateTime ChangeTime { get; set; } = DateTime.UtcNow;
         public string Reason { get; set; }
 
         public override string ToString()

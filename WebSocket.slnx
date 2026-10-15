@@ -1,14 +1,13 @@
 <Solution>
   <Folder Name="/Maanfee.WebSocket.Examples/" />
   <Folder Name="/Maanfee.WebSocket.Examples/Clients/">
-    <Project Path="Maanfee.WebSocket.Examples/Clients/BlazorClient/BlazorClient.Client/BlazorClient.Client.csproj" />
-    <Project Path="Maanfee.WebSocket.Examples/Clients/BlazorClient/BlazorClient/BlazorClient.csproj" />
+    <Project Path="Maanfee.WebSocket.Examples/Clients/BlazorClient/BlazorClient.csproj" />
     <Project Path="Maanfee.WebSocket.Examples/Clients/ConsoleClient/ConsoleClient.csproj" />
     <Project Path="Maanfee.WebSocket.Examples/Clients/WebAPIClient/WebAPIClient.csproj" />
   </Folder>
   <Folder Name="/Maanfee.WebSocket.Examples/Servers/">
-    <Project Path="Maanfee.WebSocket.Examples/Servers/BlazorServer/BlazorServer.Client/BlazorServer.Client.csproj" Id="f412a5b3-e22f-4498-8730-78be920940aa" />
-    <Project Path="Maanfee.WebSocket.Examples/Servers/BlazorServer/BlazorServer/BlazorServer.csproj" Id="2b133ff6-c9dc-470c-a09b-6958929a265c" />
+    <Project Path="Maanfee.WebSocket.Examples/Servers/BlazorServer/BlazorServer.Client/BlazorServer.Client.csproj" />
+    <Project Path="Maanfee.WebSocket.Examples/Servers/BlazorServer/BlazorServer/BlazorServer.csproj" />
     <Project Path="Maanfee.WebSocket.Examples/Servers/ConsoleServer/ConsoleServer.csproj" />
     <Project Path="Maanfee.WebSocket.Examples/Servers/WebAPIServer/WebAPIServer.csproj" />
   </Folder>
